@@ -9,6 +9,7 @@ import com.omnicybersecurity.authcheck.auth.AuthOutcome;
 import com.omnicybersecurity.authcheck.auth.AuthScriptEngine;
 import com.omnicybersecurity.authcheck.auth.SessionManager;
 import com.omnicybersecurity.authcheck.config.Configuration;
+import com.omnicybersecurity.authcheck.config.IdentityTransfer;
 import com.omnicybersecurity.authcheck.config.ResultsRepository;
 import com.omnicybersecurity.authcheck.model.Identity;
 import com.omnicybersecurity.authcheck.util.Text;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -222,6 +224,16 @@ public final class IdentitiesPanel extends JPanel {
             }
         });
         buttons.add(remove);
+
+        JButton export = new JButton("Export all...");
+        export.setToolTipText("Save every identity, credential and script to a file");
+        export.addActionListener(e -> exportIdentities());
+        buttons.add(export);
+
+        JButton importButton = new JButton("Import...");
+        importButton.setToolTipText("Add identities from a previously exported file");
+        importButton.addActionListener(e -> importIdentities());
+        buttons.add(importButton);
 
         JPanel order = new JPanel(new GridLayout(1, 2, 2, 2));
         JButton up = new JButton("Up");
@@ -710,6 +722,68 @@ public final class IdentitiesPanel extends JPanel {
             Files.writeString(target, scriptArea.getText(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Could not write the file:\n" + e.getMessage(),
+                    "Auth Check", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void exportIdentities() {
+        List<Identity> identities = new ArrayList<>(configuration.identities());
+        if (identities.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "There are no identities to export.",
+                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        // Flush any in-progress edit before writing.
+        Identity current = currentIdentity();
+        if (current != null) {
+            credentialsModel.applyTo(current);
+        }
+
+        JFileChooser chooser = new JFileChooser();
+        chooser.setSelectedFile(new java.io.File("auth-check-identities.json"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path target = chooser.getSelectedFile().toPath();
+        try {
+            Files.writeString(target, IdentityTransfer.toJson(identities), StandardCharsets.UTF_8);
+            JOptionPane.showMessageDialog(this,
+                    "Exported " + identities.size() + " identit"
+                    + (identities.size() == 1 ? "y" : "ies") + " to\n" + target
+                    + "\n\nThis file contains credentials in clear text. Treat it as sensitive.",
+                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Could not write the file:\n" + e.getMessage(),
+                    "Auth Check", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void importIdentities() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        try {
+            String json = Files.readString(chooser.getSelectedFile().toPath(), StandardCharsets.UTF_8);
+            List<Identity> imported = IdentityTransfer.fromJson(json);
+
+            int choice = JOptionPane.showConfirmDialog(this,
+                    "Add " + imported.size() + " identit" + (imported.size() == 1 ? "y" : "ies")
+                    + " to this project? Existing identities are kept.",
+                    "Auth Check", JOptionPane.OK_CANCEL_OPTION);
+            if (choice != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            imported.forEach(configuration.identities()::add);
+            configuration.identitiesChanged();
+            reloadList();
+            identityList.setSelectedValue(imported.get(0), true);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Could not read the file:\n" + e.getMessage(),
+                    "Auth Check", JOptionPane.ERROR_MESSAGE);
+        } catch (RuntimeException e) {
+            JOptionPane.showMessageDialog(this, "That file could not be imported:\n" + e.getMessage(),
                     "Auth Check", JOptionPane.ERROR_MESSAGE);
         }
     }

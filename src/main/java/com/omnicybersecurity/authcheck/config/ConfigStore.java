@@ -39,6 +39,11 @@ public final class ConfigStore {
         this.api = api;
     }
 
+    /** True when this project already holds configuration for this extension. */
+    public boolean hasStoredConfig() {
+        return api.persistence().extensionData().getChildObject(ROOT_KEY) != null;
+    }
+
     // -- load ----------------------------------------------------------------
 
     public void load(Settings settings, List<Identity> identities) {

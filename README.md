@@ -317,6 +317,16 @@ Reopen the project and the whole engagement comes back — configuration *and* e
 | **Tested requests and responses** | The baseline exchange plus every identity's replay, with its verdict, explanation, similarity score and re-auth flag |
 | **Login traffic** | Every request an auth script sent while logging in, and what came back — stored against the identity, next to the script that produced it |
 
+> **The extension name addresses this storage.** Burp identifies persisted extension
+> data by the extension's name, so the name is a fixed constant and must stay that
+> way — putting a version or build id in it gives every build its own storage and
+> makes an update look exactly like losing every identity. Builds 380dc8a–197f9dc did
+> this; 1.1.1 migrates anything they stranded back automatically on first load.
+>
+> Use **Identities → Export all…** for a backup that does not depend on any of this.
+> It is also how an identity set moves between projects or testers. The file holds
+> credentials in clear text.
+
 That combination is deliberate: months later a disputed finding can be reconstructed
 from the project alone — the script, the credentials it read, the login exchange that
 minted the session, the replay that used it, and the baseline it was judged against.
