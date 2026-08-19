@@ -134,6 +134,30 @@ public final class AuthMaterial {
         return sb.toString();
     }
 
+    /** One-line summary of what this material sets, for result details. */
+    public String summary() {
+        StringBuilder sb = new StringBuilder();
+        if (!headers.isEmpty()) {
+            sb.append("headers ").append(headers.keySet());
+        }
+        if (!cookies.isEmpty()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append("cookies ").append(cookies.keySet());
+        }
+        if (!params.isEmpty()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append("params ");
+            for (ParamSpec param : params) {
+                sb.append(param.type()).append(':').append(param.name()).append(' ');
+            }
+        }
+        return sb.length() == 0 ? "nothing" : sb.toString();
+    }
+
     /** Human-readable summary for the identity panel and result details. */
     public String describe() {
         StringBuilder sb = new StringBuilder();

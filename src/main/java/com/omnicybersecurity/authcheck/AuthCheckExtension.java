@@ -15,6 +15,7 @@ import com.omnicybersecurity.authcheck.integration.TrafficHandler;
 import com.omnicybersecurity.authcheck.model.AuthTestRecord;
 import com.omnicybersecurity.authcheck.model.Identity;
 import com.omnicybersecurity.authcheck.ui.AuthCheckTab;
+import com.omnicybersecurity.authcheck.util.BuildInfo;
 
 import javax.swing.SwingUtilities;
 import java.util.List;
@@ -29,7 +30,8 @@ public final class AuthCheckExtension implements BurpExtension {
 
     @Override
     public void initialize(MontoyaApi api) {
-        api.extension().setName(NAME);
+        api.extension().setName(NAME + " " + BuildInfo.describe());
+        api.logging().logToOutput("Auth Check build " + BuildInfo.describe());
 
         Configuration configuration = new Configuration(new ConfigStore(api));
         configuration.load();

@@ -53,6 +53,8 @@ public final class FakeHttp {
     public static final class RequestState {
         final Map<String, String> headers = new LinkedHashMap<>();
         final List<String> appliedParams = new ArrayList<>();
+        /** Header names present more than once, as HTTP/2 allows. */
+        final Map<String, List<String>> repeated = new LinkedHashMap<>();
         String method = "GET";
         String url = "https://target.example.com/api/orders/1";
         String path = "/api/orders/1";
@@ -63,6 +65,7 @@ public final class FakeHttp {
             clone.headers.putAll(headers);
             clone.appliedParams.addAll(appliedParams);
             clone.method = method;
+            repeated.forEach((k, v) -> clone.repeated.put(k, new ArrayList<>(v)));
             clone.url = url;
             clone.path = path;
             clone.body = body;
@@ -70,7 +73,24 @@ public final class FakeHttp {
         }
 
         public String header(String name) {
+            for (Map.Entry<String, List<String>> entry : repeated.entrySet()) {
+                if (entry.getKey().equalsIgnoreCase(name) && !entry.getValue().isEmpty()) {
+                    return entry.getValue().get(0);
+                }
+            }
             return findIgnoreCase(headers, name);
+        }
+
+        /** How many field lines carry this header name. */
+        public int count(String name) {
+            for (Map.Entry<String, List<String>> entry : repeated.entrySet()) {
+                // Once every repeated line is gone, fall through: a header added
+                // afterwards lives in the ordinary map.
+                if (entry.getKey().equalsIgnoreCase(name) && !entry.getValue().isEmpty()) {
+                    return entry.getValue().size();
+                }
+            }
+            return findIgnoreCase(headers, name) == null ? 0 : 1;
         }
 
         public boolean has(String name) {
@@ -108,6 +128,18 @@ public final class FakeHttp {
         return build(state);
     }
 
+    /**
+     * A request carrying the same header name several times, as HTTP/2 permits
+     * for Cookie. Removal must clear every one of them.
+     */
+    public static HttpRequest requestWithRepeatedHeader(Map<String, String> headers,
+            String repeatedName, List<String> repeatedValues) {
+        RequestState state = new RequestState();
+        state.headers.putAll(headers);
+        state.repeated.put(repeatedName, new ArrayList<>(repeatedValues));
+        return build(state);
+    }
+
     private static HttpRequest build(RequestState state) {
         return (HttpRequest) Proxy.newProxyInstance(
                 FakeHttp.class.getClassLoader(),
@@ -128,13 +160,25 @@ public final class FakeHttp {
                         next.body = String.valueOf(args[0]);
                         yield build(next);
                     }
-                    case "hasHeader" -> state.has((String) args[0]);
+                    case "hasHeader" -> state.count((String) args[0]) > 0;
                     case "headerValue" -> state.header((String) args[0]);
-                    case "headers" -> headerList(state.headers);
+                    case "headers" -> headerList(state);
                     case "hasParameter" -> false;
                     case "withRemovedHeader" -> {
                         RequestState next = state.copy();
-                        removeIgnoreCase(next.headers, (String) args[0]);
+                        String target = (String) args[0];
+                        // Model the pessimistic case: one call clears one field line.
+                        boolean removedRepeated = false;
+                        for (Map.Entry<String, List<String>> entry : next.repeated.entrySet()) {
+                            if (entry.getKey().equalsIgnoreCase(target) && !entry.getValue().isEmpty()) {
+                                entry.getValue().remove(0);
+                                removedRepeated = true;
+                                break;
+                            }
+                        }
+                        if (!removedRepeated) {
+                            removeIgnoreCase(next.headers, target);
+                        }
                         yield build(next);
                     }
                     case "withUpdatedHeader" -> {
@@ -216,6 +260,13 @@ public final class FakeHttp {
 
     private static void removeIgnoreCase(Map<String, String> map, String name) {
         map.keySet().removeIf(key -> key.equalsIgnoreCase(name));
+    }
+
+    private static List<HttpHeader> headerList(RequestState state) {
+        List<HttpHeader> all = new ArrayList<>(headerList(state.headers));
+        state.repeated.forEach((name, values) ->
+                values.forEach(value -> all.addAll(headerList(Map.of(name, value)))));
+        return all;
     }
 
     private static List<HttpHeader> headerList(Map<String, String> map) {

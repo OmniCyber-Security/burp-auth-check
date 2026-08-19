@@ -333,8 +333,11 @@ public final class AuthCheckEngine {
                         true, store(exchange));
             }
 
+            // State what was applied, so a replay that is missing it on the wire
+            // is visibly the mutator's or Burp's problem, not the script's.
             return new VariantResult(key, label, analysis.verdict(), analysis.similarity(),
-                    analysis.detail(), false, store(exchange));
+                    analysis.detail() + "\n\nAuth applied to this replay: " + material.summary(),
+                    false, store(exchange));
         } catch (Exception e) {
             return VariantResult.failed(key, label, Verdict.ERROR, "Replay failed: " + e);
         }

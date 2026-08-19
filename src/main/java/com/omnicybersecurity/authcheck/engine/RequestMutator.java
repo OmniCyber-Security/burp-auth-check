@@ -24,6 +24,8 @@ import java.util.Map;
 public final class RequestMutator {
 
     private static final String COOKIE_HEADER = "Cookie";
+    /** Upper bound on repeated field lines for one header name. */
+    private static final int MAX_REPEATED_FIELDS = 16;
 
     private final Configuration configuration;
 
@@ -69,8 +71,17 @@ public final class RequestMutator {
             }
             String trimmed = name.trim();
             // Only remove what is present: Montoya throws on unknown headers.
-            if (result.hasHeader(trimmed)) {
-                result = result.withRemovedHeader(trimmed);
+            // Loop because HTTP/2 allows a header -- Cookie in particular -- to
+            // arrive as several field lines, and one removal may clear only one.
+            int guard = 0;
+            while (result.hasHeader(trimmed) && guard++ < MAX_REPEATED_FIELDS) {
+                HttpRequest reduced = result.withRemovedHeader(trimmed);
+                if (reduced.hasHeader(trimmed) && sameHeaderCount(reduced, result, trimmed)) {
+                    // Removal made no progress; stop rather than spin.
+                    result = reduced;
+                    break;
+                }
+                result = reduced;
             }
         }
         return result;
@@ -144,6 +155,20 @@ public final class RequestMutator {
             }
         }
         return cookies;
+    }
+
+    private static boolean sameHeaderCount(HttpRequest left, HttpRequest right, String name) {
+        return countHeaders(left, name) == countHeaders(right, name);
+    }
+
+    private static int countHeaders(HttpRequest request, String name) {
+        int count = 0;
+        for (burp.api.montoya.http.message.HttpHeader header : request.headers()) {
+            if (header.name().equalsIgnoreCase(name)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static boolean containsIgnoreCase(List<String> values, String needle) {

@@ -126,6 +126,36 @@ class RequestMutatorTest {
     }
 
     @Test
+    void repeatedCookieFieldsAreAllCleared() {
+        // HTTP/2 lets Cookie arrive as several field lines. Leaving any of the
+        // baseline user's behind would send two identities' cookies at once.
+        HttpRequest base = FakeHttp.requestWithRepeatedHeader(
+                Map.of("Host", "target.example.com"),
+                "Cookie",
+                java.util.List.of("a=1", "JSESSIONID=alice-session", "b=2"));
+
+        identity.stripHeaders("Cookie");
+        AuthMaterial material = AuthMaterial.builder().cookie("JSESSIONID", "bob-session").build();
+
+        FakeHttp.RequestState result = FakeHttp.stateOf(mutator.applyIdentity(base, identity, material));
+
+        assertEquals(1, result.count("Cookie"), "exactly one Cookie field should remain");
+        assertEquals("JSESSIONID=bob-session", result.header("Cookie"));
+    }
+
+    @Test
+    void repeatedAuthHeadersAreAllClearedForTheUnauthenticatedReplay() {
+        HttpRequest base = FakeHttp.requestWithRepeatedHeader(
+                Map.of("Host", "target.example.com"),
+                "Cookie",
+                java.util.List.of("session=alice", "csrf=xyz"));
+
+        FakeHttp.RequestState result = FakeHttp.stateOf(mutator.applyUnauthenticated(base));
+
+        assertEquals(0, result.count("Cookie"), "no cookie may survive the unauthenticated replay");
+    }
+
+    @Test
     void unauthenticatedReplayDropsEveryCredential() {
         FakeHttp.RequestState result = FakeHttp.stateOf(mutator.applyUnauthenticated(captured()));
 

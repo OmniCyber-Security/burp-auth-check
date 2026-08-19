@@ -11,6 +11,19 @@ repositories {
 }
 
 val montoyaVersion = "2026.7"
+
+// Identifies the exact build at runtime. CI provides the sha; a local build
+// falls back to git, and to "unknown" outside a checkout.
+val buildCommit: Provider<String> =
+    providers.environmentVariable("GITHUB_SHA").map { it.take(7) }
+        .orElse(
+            providers.exec {
+                commandLine("git", "rev-parse", "--short", "HEAD")
+                isIgnoreExitValue = true
+            }.standardOutput.asText.map { it.trim() }
+        )
+        .map { it.ifBlank { "unknown" } }
+        .orElse("unknown")
 val groovyVersion = "5.1.0"
 
 dependencies {
@@ -62,6 +75,7 @@ tasks.shadowJar {
         attributes(
             "Implementation-Title" to "Burp Auth Check",
             "Implementation-Version" to project.version.toString(),
+            "Implementation-Commit" to buildCommit.get(),
         )
     }
 }
