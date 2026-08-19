@@ -137,7 +137,9 @@ public final class ResultsPanel extends JPanel {
     // -- construction --------------------------------------------------------
 
     private void buildTable() {
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        // Fill the viewport width and give every spare pixel to the last column,
+        // which is Notes -- the one column whose content is free text.
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         table.setRowSelectionAllowed(true);
         table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         table.setRowSorter(sorter);
@@ -168,14 +170,36 @@ public final class ResultsPanel extends JPanel {
         });
     }
 
+    /**
+     * Sizes the columns so the table fills its width with Notes taking the slack.
+     *
+     * <p>Minimum widths matter here: with auto-resize on there is no horizontal
+     * scrollbar, so a narrow window squeezes columns rather than clipping them,
+     * and without a floor the verdict columns would compress to nothing once
+     * several identities are configured.
+     */
     private void applyColumnWidths() {
-        int[] widths = { 55, 70, 70, 70, 420, 60, 70 };
-        for (int index = 0; index < widths.length && index < table.getColumnCount(); index++) {
+        int columnCount = table.getColumnCount();
+        int notesColumn = columnCount - 1;
+
+        int[] preferred = { 55, 70, 70, 70, 420, 60, 70 };
+        int[] minimum = { 40, 60, 55, 55, 160, 50, 55 };
+
+        for (int index = 0; index < columnCount; index++) {
             TableColumn column = table.getColumnModel().getColumn(index);
-            column.setPreferredWidth(widths[index]);
-        }
-        for (int index = widths.length; index < table.getColumnCount(); index++) {
-            table.getColumnModel().getColumn(index).setPreferredWidth(130);
+            if (index == notesColumn) {
+                // Whatever is left over lands here; the preferred width only
+                // matters when the window is wide enough to satisfy everything.
+                column.setPreferredWidth(260);
+                column.setMinWidth(120);
+            } else if (index < preferred.length) {
+                column.setPreferredWidth(preferred[index]);
+                column.setMinWidth(minimum[index]);
+            } else {
+                // A verdict column for one identity.
+                column.setPreferredWidth(130);
+                column.setMinWidth(90);
+            }
         }
     }
 

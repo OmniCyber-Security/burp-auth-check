@@ -72,6 +72,21 @@ class ResultsTableModelTest {
     }
 
     @Test
+    void notesIsAlwaysTheLastColumn() {
+        // The results table uses AUTO_RESIZE_LAST_COLUMN so the free-text column
+        // absorbs the spare width. Adding a column after Notes would silently
+        // hand that behaviour to the wrong one.
+        assertEquals("Notes", model.getColumnName(model.getColumnCount() - 1));
+
+        configuration.identities().add(new Identity("id-alice", "Alice"));
+        configuration.identities().add(new Identity("id-bob", "Bob"));
+        model.rebuildColumns(false);
+
+        assertEquals("Notes", model.getColumnName(model.getColumnCount() - 1),
+                "still last once identity columns exist");
+    }
+
+    @Test
     void anUnknownOrBlankKeyIsRejected() {
         assertEquals(-1, model.columnForKey(""));
         assertEquals(-1, model.columnForKey(null));
