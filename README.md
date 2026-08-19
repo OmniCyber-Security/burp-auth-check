@@ -17,8 +17,9 @@ project**, so reopening it restores the evidence as well as the setup.
 ## Contents
 
 - [Why the session handling matters](#why-the-session-handling-matters)
-- [Building](#building)
 - [Installing](#installing)
+- [Building from source](#building-from-source)
+- [CI and releases](#ci-and-releases)
 - [Quick start](#quick-start)
 - [Auth scripts](#auth-scripts)
 - [Keeping short-lived sessions alive](#keeping-short-lived-sessions-alive)
@@ -57,29 +58,54 @@ same expired session cause **one** login, not ten.
 
 ---
 
-## Building
+## Installing
+
+Grab `burp-auth-check-<version>.jar` from
+[**Releases**](https://github.com/OmniCyber-Security/burp-auth-check/releases) — the
+`latest` prerelease always tracks the current `main`.
+
+Then: Burp → **Extensions** → **Installed** → **Add** → Extension type **Java** →
+select the JAR. A new **Auth Check** tab appears.
+
+## Building from source
 
 Requires a JDK 17 or newer. The Gradle wrapper is included; nothing else to install.
 
 ```bash
-./gradlew shadowJar
-```
-
-Produces `build/libs/burp-auth-check-1.0.0.jar` (~8 MB — it bundles Groovy).
-
-Run the tests with:
-
-```bash
-./gradlew test
+./gradlew shadowJar   # -> build/libs/burp-auth-check-1.0.0.jar (~8 MB, bundles Groovy)
+./gradlew test        # 60 tests
+./gradlew build       # both
 ```
 
 The Montoya API is `compileOnly` and is deliberately **not** bundled — Burp provides
 it at runtime.
 
-## Installing
+## CI and releases
 
-Burp → **Extensions** → **Installed** → **Add** → Extension type **Java** → select
-the JAR. A new **Auth Check** tab appears.
+`.github/workflows/build.yml` builds and tests on every push and pull request, and
+publishes the jar:
+
+| Trigger | Result |
+|---|---|
+| Push to any branch, or a PR | Build + test; jar kept as a build artifact for 90 days |
+| Push to `main` | The above, plus the rolling **`latest`** prerelease is replaced with the new jar |
+| Push a **`v*`** tag | The above, plus a permanent versioned release with generated notes |
+
+The rolling release is deleted and recreated each time, so `main` always has a
+one-click jar without accumulating a release per commit. Cut a fixed build with:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+Two notes on how it is set up:
+
+- The Gradle wrapper jar is executable code committed to the repo, so the pipeline
+  validates it against Gradle's published checksums before running it.
+- The organisation defaults workflow tokens to read-only. The workflow requests
+  `contents: write` explicitly, which is the minimum needed to publish a release, and
+  nothing else. If that org policy is ever tightened to hard-deny, the release steps
+  will 403 and a PAT secret would be needed instead.
 
 ---
 
@@ -343,6 +369,7 @@ line rather than growing memory or blocking Burp's proxy threads.
 ## Project layout
 
 ```
+.github/workflows/build.yml      Build, test, publish releases
 src/main/java/com/omnicybersecurity/authcheck/
 ├── AuthCheckExtension.java      Entry point; wires everything and registers hooks
 ├── model/                       Identity, AuthMaterial, verdicts, test records
