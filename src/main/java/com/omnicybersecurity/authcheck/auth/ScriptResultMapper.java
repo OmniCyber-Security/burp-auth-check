@@ -37,6 +37,13 @@ public final class ScriptResultMapper {
     }
 
     public static AuthMaterial map(Object result, Identity identity) {
+        return map(result, identity, null);
+    }
+
+    /**
+     * @param log optional; used to warn about returns that are probably a mistake
+     */
+    public static AuthMaterial map(Object result, Identity identity, ScriptLog log) {
         if (result == null) {
             return AuthMaterial.empty();
         }
@@ -55,7 +62,7 @@ public final class ScriptResultMapper {
             return fromExchange(exchange);
         }
         if (result instanceof Map<?, ?> map) {
-            return fromMap(map, identity);
+            return fromMap(map, identity, log);
         }
         throw new IllegalArgumentException("Auth script returned a "
                 + result.getClass().getSimpleName()
@@ -72,7 +79,7 @@ public final class ScriptResultMapper {
         return builder.build();
     }
 
-    private static AuthMaterial fromMap(Map<?, ?> map, Identity identity) {
+    private static AuthMaterial fromMap(Map<?, ?> map, Identity identity, ScriptLog log) {
         AuthMaterial.Builder builder = AuthMaterial.builder();
 
         boolean recognised = false;
@@ -83,8 +90,15 @@ public final class ScriptResultMapper {
             }
         }
         if (!recognised) {
-            // Bare map of header names to values -- the most common shorthand.
+            // Bare map of header names to values -- a useful shorthand for things
+            // like ['X-Api-Key': key], but the same shape a cookie map has, so it
+            // is worth being explicit about what just happened.
             applyHeaders(builder, map);
+            if (log != null && !map.isEmpty()) {
+                log.warn("Returned a plain map, so " + map.keySet()
+                        + " were applied as REQUEST HEADERS. If those are cookies, return"
+                        + " [cookies: ...] instead -- e.g. return [cookies: http.cookies(resp)].");
+            }
             return builder.build();
         }
 

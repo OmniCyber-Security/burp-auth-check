@@ -64,8 +64,18 @@ public final class ScriptHttp {
 
     // -- sending -------------------------------------------------------------
 
+    /**
+     * Sends without following redirects.
+     *
+     * <p>This deliberately ignores the "follow redirects when replaying" setting.
+     * That setting is about replaying the request under test; wiring it to script
+     * requests too meant turning it on silently changed how logins behaved, and a
+     * login's {@code Set-Cookie} usually arrives on the 302 itself -- following it
+     * would discard the session the script exists to obtain. Pass an explicit
+     * {@code true} when a flow really does need the redirect followed.
+     */
     public HttpRequestResponse send(HttpRequest request) {
-        return send(request, settings.followRedirectsOnReplay());
+        return send(request, false);
     }
 
     public HttpRequestResponse send(HttpRequest request, boolean followRedirects) {

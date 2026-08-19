@@ -54,12 +54,18 @@ public final class FakeHttp {
         final Map<String, String> headers = new LinkedHashMap<>();
         final List<String> appliedParams = new ArrayList<>();
         String method = "GET";
+        String url = "https://target.example.com/api/orders/1";
+        String path = "/api/orders/1";
+        String body = "";
 
         RequestState copy() {
             RequestState clone = new RequestState();
             clone.headers.putAll(headers);
             clone.appliedParams.addAll(appliedParams);
             clone.method = method;
+            clone.url = url;
+            clone.path = path;
+            clone.body = body;
             return clone;
         }
 
@@ -81,6 +87,20 @@ public final class FakeHttp {
         return request(headers, "GET");
     }
 
+    /** Mirrors {@code HttpRequest.httpRequestFromUrl}: a GET carrying the URL. */
+    public static HttpRequest requestForUrl(String url) {
+        RequestState state = new RequestState();
+        state.url = url;
+        try {
+            java.net.URI uri = java.net.URI.create(url);
+            state.headers.put("Host", uri.getHost() == null ? "unknown" : uri.getHost());
+            state.path = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
+        } catch (RuntimeException e) {
+            state.path = "/";
+        }
+        return build(state);
+    }
+
     public static HttpRequest request(Map<String, String> headers, String method) {
         RequestState state = new RequestState();
         state.headers.putAll(headers);
@@ -95,8 +115,19 @@ public final class FakeHttp {
                 (proxy, method, args) -> switch (method.getName()) {
                     case "state" -> state;
                     case "method" -> state.method;
-                    case "url" -> "https://target.example.com/api/orders/1";
-                    case "path", "pathWithoutQuery" -> "/api/orders/1";
+                    case "url" -> state.url;
+                    case "path", "pathWithoutQuery" -> state.path;
+                    case "bodyToString" -> state.body;
+                    case "withMethod" -> {
+                        RequestState next = state.copy();
+                        next.method = (String) args[0];
+                        yield build(next);
+                    }
+                    case "withBody" -> {
+                        RequestState next = state.copy();
+                        next.body = String.valueOf(args[0]);
+                        yield build(next);
+                    }
                     case "hasHeader" -> state.has((String) args[0]);
                     case "headerValue" -> state.header((String) args[0]);
                     case "headers" -> headerList(state.headers);

@@ -95,8 +95,10 @@ public final class HelpPanel extends JPanel {
                   <tr><td><code>http.header(resp, name)</code></td><td>One response header value.</td></tr>
                   <tr><td><code>http.extractFrom(resp, regex)</code></td><td>First capture group from the body.</td></tr>
                 </table>
-                <p>Redirects are not followed by default, so a <code>Set-Cookie</code> on a 302 is still visible.
-                Pass <code>false</code>/<code>true</code> as the last argument of <code>http.send</code> to choose.</p>
+                <p>Redirects are never followed unless you ask, so a <code>Set-Cookie</code> on a 302 is still
+                visible. Pass <code>true</code> as the last argument of <code>http.send</code> when a flow really
+                needs the redirect followed. The "follow redirects when replaying" setting applies only to the
+                request under test, not to your scripts.</p>
 
                 <h3>What to return</h3>
                 <pre>// bearer token
@@ -115,6 +117,11 @@ public final class HelpPanel extends JPanel {
 
                 // a bare string goes into the identity's token header
                 return "Bearer $token"</pre>
+                <p><b>Cookies must be wrapped in <code>cookies:</code>.</b> A bare map is applied as
+                <i>headers</i> -- which is exactly the shape <code>http.cookies(resp)</code> returns, so
+                <code>return http.cookies(resp)</code> quietly sets a header named <code>JSESSIONID</code> and the
+                replays go out with no cookie at all. Write <code>return [cookies: http.cookies(resp)]</code>. The
+                script log warns whenever a bare map is applied as headers.</p>
                 <p>Throw an exception to signal failure -- the message lands on the identity's status line and the
                 affected rows read <b>Auth failed</b> rather than pretending the test ran.</p>
                 <p>Everything a script sends is recorded on the identity's <b>Login traffic</b> tab: the exact

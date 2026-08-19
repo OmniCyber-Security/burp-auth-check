@@ -107,9 +107,22 @@ public final class FakePersistence implements AutoCloseable {
                     if (name.startsWith("persisted") && name.endsWith("List")) {
                         return fakeList();
                     }
+                    if ("requestOptions".equals(name)) {
+                        return RecordedRequest.newOptions();
+                    }
+                    // Scripts build requests with HttpRequest.httpRequestFromUrl(...),
+                    // which routes through the factory as well.
+                    if ("httpRequestFromUrl".equals(name)) {
+                        return FakeHttp.requestForUrl((String) args[0]);
+                    }
                     throw new UnsupportedOperationException(
                             "FakePersistence does not provide " + name + "()");
                 });
+    }
+
+    /** Installs only the object factory, for tests that need no project store. */
+    public static FakePersistence installFactoryOnly() {
+        return new FakePersistence(true);
     }
 
     /** A PersistedList backed by a plain ArrayList. */

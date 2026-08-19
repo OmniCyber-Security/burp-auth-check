@@ -164,8 +164,11 @@ expression — or an explicit `return` — is the auth material applied to every
 | `http.header(resp, name)` | A response header |
 | `http.extractFrom(resp, regex)` | First capture group from the body |
 
-Redirects are **not** followed by default, because the `Set-Cookie` you need is
-usually on the 302 itself.
+Redirects are **never** followed unless you ask, because the `Set-Cookie` you need is
+usually on the 302 itself and following it would discard the session. Pass `true` as
+the last argument of `http.send` when a flow genuinely needs the redirect followed.
+The "follow redirects when replaying" setting applies only to the request under test,
+not to your scripts.
 
 ### What to return
 
@@ -179,7 +182,7 @@ return [cookies: ['JSESSIONID': session]]
 // a bare string goes into the identity's configured token header
 return "Bearer $token"
 
-// a bare map with no recognised wrapper key is treated as headers
+// a bare map with no recognised wrapper key is treated as HEADERS
 return ['X-Api-Key': creds.token]
 
 // everything at once
@@ -190,6 +193,13 @@ return [
     remove : ['If-None-Match']
 ]
 ```
+
+> **Cookies must be wrapped in `cookies:`.** A bare map is applied as *headers*,
+> which is the same shape `http.cookies(resp)` returns — so `return http.cookies(resp)`
+> quietly sets a header called `JSESSIONID` and your replays go out with no cookie at
+> all. Write `return [cookies: http.cookies(resp)]`. The script log warns when a bare
+> map is applied as headers, and the identity's **Login traffic** tab shows what
+> actually went on the wire.
 
 `params` accepts the Montoya types: `URL`, `BODY`, `COOKIE`, `JSON`, `XML`,
 `XML_ATTRIBUTE`, `MULTIPART_ATTRIBUTE`. A parameter already on the request is

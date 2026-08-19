@@ -114,7 +114,7 @@ public final class AuthScriptEngine {
         Future<Object> future = runner.submit(() -> execute(identity, binding));
         try {
             Object result = future.get(timeout, TimeUnit.SECONDS);
-            AuthMaterial material = ScriptResultMapper.map(result, identity);
+            AuthMaterial material = ScriptResultMapper.map(result, identity, log);
             if (material.isEmpty()) {
                 // A script that returns nothing usable is nearly always a bug in
                 // the script, and silently sending unauthenticated requests would
