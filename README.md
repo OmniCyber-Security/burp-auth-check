@@ -260,7 +260,10 @@ guessing, which is safe but slower to react.
 | **Error** | The replay itself failed — connection refused, timeout. |
 
 Select a row to get every variant's full request and response side by side, plus the
-reasoning behind the verdict. Sorting a verdict column puts the worst first. Hovering
+reasoning behind the verdict. Sorting a verdict column puts the worst first, and the
+sort you choose is remembered in the project — it is stored against the column's
+identity rather than its position, so adding or removing an identity does not leave
+you sorted by the wrong column. Hovering
 a verdict cell shows the explanation. **Findings only** hides everything but bypasses.
 **Export CSV** writes every verdict with its explanation.
 

@@ -54,6 +54,39 @@ public final class ResultsTableModel extends AbstractTableModel {
         return variants;
     }
 
+    /**
+     * A stable identifier for a column, used to remember the sort across
+     * restarts. Column <em>indices</em> shift whenever an identity is added,
+     * removed or disabled, so an index would silently start meaning a different
+     * column; the identity's id does not move.
+     */
+    public String columnKey(int column) {
+        if (column < 0) {
+            return "";
+        }
+        if (column < FIXED_COLUMNS.length) {
+            return "fixed:" + FIXED_COLUMNS[column];
+        }
+        int variantIndex = column - FIXED_COLUMNS.length;
+        if (variantIndex < variants.size()) {
+            return "variant:" + variants.get(variantIndex).key();
+        }
+        return "fixed:Notes";
+    }
+
+    /** The current index of a remembered column, or -1 if it is gone. */
+    public int columnForKey(String key) {
+        if (key == null || key.isBlank()) {
+            return -1;
+        }
+        for (int column = 0; column < getColumnCount(); column++) {
+            if (columnKey(column).equals(key)) {
+                return column;
+            }
+        }
+        return -1;
+    }
+
     public AuthTestRecord recordAt(int rowIndex) {
         return records.get(rowIndex);
     }

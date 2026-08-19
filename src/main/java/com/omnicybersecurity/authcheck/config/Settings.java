@@ -43,6 +43,10 @@ public final class Settings {
 
     // -- storing results in the project file --------------------------------
 
+    /** Remembered results-table sort: a stable column key, blank for none. */
+    private volatile String resultsSortColumn = "";
+    private volatile boolean resultsSortAscending = true;
+
     private volatile boolean persistResults = true;
     private volatile boolean persistOnlyInteresting = false;
     private volatile int maxPersistedRecords = 500;
@@ -211,6 +215,22 @@ public final class Settings {
 
     public void scriptTimeoutSeconds(int value) {
         this.scriptTimeoutSeconds = Math.max(1, value);
+    }
+
+    public String resultsSortColumn() {
+        return resultsSortColumn;
+    }
+
+    public void resultsSortColumn(String value) {
+        this.resultsSortColumn = Text.nullToEmpty(value);
+    }
+
+    public boolean resultsSortAscending() {
+        return resultsSortAscending;
+    }
+
+    public void resultsSortAscending(boolean value) {
+        this.resultsSortAscending = value;
     }
 
     /** Whether tested requests and responses are written into the Burp project. */

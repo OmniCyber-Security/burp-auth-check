@@ -73,6 +73,8 @@ public final class ConfigStore {
         settings.excludeUrlRegex(string(cfg, "excludeUrlRegex", settings.excludeUrlRegex()));
         settings.skipStatusCodes(string(cfg, "skipStatusCodes", settings.skipStatusCodes()));
         settings.skipMethods(string(cfg, "skipMethods", settings.skipMethods()));
+        settings.resultsSortColumn(string(cfg, "resultsSortColumn", settings.resultsSortColumn()));
+        settings.resultsSortAscending(bool(cfg, "resultsSortAscending", settings.resultsSortAscending()));
         settings.deniedStatusCodes(string(cfg, "deniedStatusCodes", settings.deniedStatusCodes()));
         settings.deniedBodyRegex(string(cfg, "deniedBodyRegex", settings.deniedBodyRegex()));
         settings.loginRedirectRegex(string(cfg, "loginRedirectRegex", settings.loginRedirectRegex()));
@@ -192,6 +194,8 @@ public final class ConfigStore {
         cfg.setString("excludeUrlRegex", settings.excludeUrlRegex());
         cfg.setString("skipStatusCodes", settings.skipStatusCodes());
         cfg.setString("skipMethods", settings.skipMethods());
+        cfg.setString("resultsSortColumn", settings.resultsSortColumn());
+        cfg.setBoolean("resultsSortAscending", settings.resultsSortAscending());
         cfg.setString("deniedStatusCodes", settings.deniedStatusCodes());
         cfg.setString("deniedBodyRegex", settings.deniedBodyRegex());
         cfg.setString("loginRedirectRegex", settings.loginRedirectRegex());

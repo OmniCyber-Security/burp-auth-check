@@ -32,7 +32,10 @@ import javax.swing.JTextArea;
 import javax.swing.JToolBar;
 import javax.swing.ListSelectionModel;
 import javax.swing.RowFilter;
+import javax.swing.RowSorter;
+import javax.swing.SortOrder;
 import javax.swing.SwingUtilities;
+import javax.swing.event.RowSorterEvent;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableRowSorter;
@@ -77,6 +80,8 @@ public final class ResultsPanel extends JPanel {
 
     /** Rows the table has already been told about. Event thread only. */
     private int notifiedRowCount;
+    /** Set while the saved sort is being re-applied, so it is not saved back. */
+    private boolean restoringSort;
 
     /** One row in the per-record variant list. */
     private record VariantEntry(String label, Verdict verdict, String detail, HttpRequestResponse exchange) {
@@ -125,6 +130,7 @@ public final class ResultsPanel extends JPanel {
         // Results restored from the project are already in the model.
         notifiedRowCount = tableModel.getRowCount();
         wireListeners();
+        applySavedSort();
         updateStatus();
     }
 
@@ -152,6 +158,12 @@ public final class ResultsPanel extends JPanel {
         table.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) {
                 showSelectedRecord();
+            }
+        });
+
+        sorter.addRowSorterListener(event -> {
+            if (event.getType() == RowSorterEvent.Type.SORT_ORDER_CHANGED) {
+                rememberSort();
             }
         });
     }
@@ -304,6 +316,48 @@ public final class ResultsPanel extends JPanel {
             }
         }
         applyColumnWidths();
+        applySavedSort();
+    }
+
+    /**
+     * Stores the current sort in the project.
+     *
+     * <p>Saved directly rather than through {@code settingsChanged()}: that
+     * notifies listeners, one of which rebuilds the columns, which clears the
+     * sort and would re-enter this method.
+     */
+    private void rememberSort() {
+        if (restoringSort) {
+            return;
+        }
+        List<? extends RowSorter.SortKey> keys = sorter.getSortKeys();
+        if (keys.isEmpty() || keys.get(0).getSortOrder() == SortOrder.UNSORTED) {
+            configuration.settings().resultsSortColumn("");
+        } else {
+            RowSorter.SortKey key = keys.get(0);
+            configuration.settings().resultsSortColumn(tableModel.columnKey(key.getColumn()));
+            configuration.settings().resultsSortAscending(key.getSortOrder() == SortOrder.ASCENDING);
+        }
+        configuration.save();
+    }
+
+    /** Re-applies the remembered sort, if that column still exists. */
+    private void applySavedSort() {
+        String columnKey = configuration.settings().resultsSortColumn();
+        int column = tableModel.columnForKey(columnKey);
+        restoringSort = true;
+        try {
+            if (column < 0) {
+                // No saved sort, or the identity that column belonged to is gone.
+                sorter.setSortKeys(null);
+                return;
+            }
+            sorter.setSortKeys(List.of(new RowSorter.SortKey(column,
+                    configuration.settings().resultsSortAscending()
+                            ? SortOrder.ASCENDING : SortOrder.DESCENDING)));
+        } finally {
+            restoringSort = false;
+        }
     }
 
     // -- selection -----------------------------------------------------------
