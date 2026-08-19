@@ -72,7 +72,7 @@ select the JAR. A new **Auth Check** tab appears.
 Requires a JDK 17 or newer. The Gradle wrapper is included; nothing else to install.
 
 ```bash
-./gradlew shadowJar   # -> build/libs/burp-auth-check-1.0.0.jar (~8 MB, bundles Groovy)
+./gradlew shadowJar   # -> build/libs/burp-auth-check-<version>.jar (~8 MB, bundles Groovy)
 ./gradlew test        # 60 tests
 ./gradlew build       # both
 ```
