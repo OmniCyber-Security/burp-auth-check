@@ -2,7 +2,6 @@ package com.omnicybersecurity.authcheck.config;
 
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.http.message.HttpRequestResponse;
-import burp.api.montoya.persistence.PersistedList;
 import burp.api.montoya.persistence.PersistedObject;
 import com.omnicybersecurity.authcheck.model.AuthTestRecord;
 import com.omnicybersecurity.authcheck.model.VariantResult;
@@ -112,8 +111,32 @@ public final class ResultsRepository {
         if (node == null) {
             return List.of();
         }
-        PersistedList<HttpRequestResponse> exchanges = node.getHttpRequestResponseList("exchanges");
-        return exchanges == null ? List.of() : List.copyOf(exchanges);
+        List<HttpRequestResponse> exchanges = new ArrayList<>();
+        Integer count = node.getInteger("exchangeCount");
+        if (count != null) {
+            for (int index = 0; index < count; index++) {
+                HttpRequestResponse exchange = node.getHttpRequestResponse("exchange" + index);
+                if (exchange != null) {
+                    exchanges.add(exchange);
+                }
+            }
+            return List.copyOf(exchanges);
+        }
+        // Written by an older build as a typed list; walk it without casting.
+        try {
+            Object raw = node.getHttpRequestResponseList("exchanges");
+            if (raw instanceof Iterable<?> elements) {
+                for (Object element : elements) {
+                    if (element instanceof HttpRequestResponse exchange) {
+                        exchanges.add(exchange);
+                    }
+                }
+            }
+        } catch (RuntimeException | LinkageError e) {
+            api.logging().logToError("[auth-check] Stored login traffic for " + identityId
+                    + " could not be read: " + e);
+        }
+        return List.copyOf(exchanges);
     }
 
     // -- writing -------------------------------------------------------------
@@ -152,9 +175,12 @@ public final class ResultsRepository {
                 }
                 PersistedObject node = PersistedObject.persistedObject();
                 node.setLong("recordedAt", System.currentTimeMillis());
-                PersistedList<HttpRequestResponse> list = PersistedList.persistedHttpRequestResponseList();
-                list.addAll(copy);
-                node.setHttpRequestResponseList("exchanges", list);
+                // Indexed entries rather than a PersistedList: the typed list does
+                // not reliably hand back the type it declares.
+                node.setInteger("exchangeCount", copy.size());
+                for (int index = 0; index < copy.size(); index++) {
+                    node.setHttpRequestResponse("exchange" + index, copy.get(index));
+                }
                 store.setChildObject(identityId, node);
                 if (!liveChildWrites) {
                     root.setChildObject(TRANSCRIPTS_KEY, store);
@@ -228,7 +254,7 @@ public final class ResultsRepository {
         }
 
         PersistedObject variants = PersistedObject.persistedObject();
-        PersistedList<String> variantOrder = PersistedList.persistedStringList();
+        List<String> variantOrder = new ArrayList<>();
         for (Map.Entry<String, VariantResult> entry : record.results().entrySet()) {
             VariantResult result = entry.getValue();
             PersistedObject variant = PersistedObject.persistedObject();
@@ -243,7 +269,7 @@ public final class ResultsRepository {
             variants.setChildObject(entry.getKey(), variant);
             variantOrder.add(entry.getKey());
         }
-        variants.setStringList(ORDER_KEY, variantOrder);
+        PersistedLists.writeOrder(variants, ORDER_KEY, variantOrder);
         node.setChildObject(VARIANTS_KEY, variants);
 
         root.setChildObject(key, node);
@@ -342,27 +368,13 @@ public final class ResultsRepository {
     }
 
     private void rewriteOrder(PersistedObject root) {
-        PersistedList<String> order = PersistedList.persistedStringList();
-        order.addAll(persistedKeys);
-        root.setStringList(ORDER_KEY, order);
+        PersistedLists.writeOrder(root, ORDER_KEY, persistedKeys);
     }
 
     /** Stored order first, then anything else present, so nothing is lost. */
     private static List<String> orderedKeys(PersistedObject container) {
-        List<String> keys = new ArrayList<>();
-        PersistedList<String> order = container.getStringList(ORDER_KEY);
-        if (order != null) {
-            keys.addAll(order);
-        }
-        List<String> present = new ArrayList<>(container.childObjectKeys());
-        java.util.Collections.sort(present);
-        for (String key : present) {
-            if (!keys.contains(key)) {
-                keys.add(key);
-            }
-        }
-        keys.removeIf(key -> !container.childObjectKeys().contains(key));
-        return keys;
+        return PersistedLists.reconcile(
+                PersistedLists.readOrder(container, ORDER_KEY), container.childObjectKeys());
     }
 
     private boolean probeLiveChildWrites() {

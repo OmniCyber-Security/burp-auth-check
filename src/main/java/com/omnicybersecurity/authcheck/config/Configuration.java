@@ -19,6 +19,7 @@ public final class Configuration {
     private final Settings settings = new Settings();
     private final List<Identity> identities = new CopyOnWriteArrayList<>();
     private final ConfigStore store;
+    private volatile Throwable loadError;
 
     private final List<Runnable> identityListeners = new CopyOnWriteArrayList<>();
     private final List<Runnable> settingsListeners = new CopyOnWriteArrayList<>();
@@ -55,11 +56,29 @@ public final class Configuration {
         return null;
     }
 
+    /**
+     * Loads from the project, tolerating anything the project throws at it.
+     *
+     * <p>Configuration is read during {@code initialize}, so an exception here
+     * stops the extension loading at all. Starting with defaults and a logged
+     * error is always better than not starting: the tester can re-import, and
+     * nothing in the project has been overwritten.
+     */
     public void load() {
         List<Identity> loaded = new ArrayList<>();
-        store.load(settings, loaded);
+        try {
+            store.load(settings, loaded);
+        } catch (RuntimeException | LinkageError e) {
+            loadError = e;
+            loaded.clear();
+        }
         identities.clear();
         identities.addAll(loaded);
+    }
+
+    /** The failure from the last {@link #load()}, or null. */
+    public Throwable loadError() {
+        return loadError;
     }
 
     public void save() {

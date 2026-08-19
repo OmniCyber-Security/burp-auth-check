@@ -58,6 +58,12 @@ public final class AuthCheckExtension implements BurpExtension {
         Configuration configuration = new Configuration(store);
         configuration.load();
 
+        if (configuration.loadError() != null) {
+            api.logging().logToError("[auth-check] Stored configuration could not be read; "
+                    + "starting with defaults. Nothing in the project has been overwritten -- "
+                    + "use Identities > Import to restore from an export.", configuration.loadError());
+        }
+
         if (!store.hasStoredConfig()) {
             recoverFromLegacyNames(api, configuration);
         }

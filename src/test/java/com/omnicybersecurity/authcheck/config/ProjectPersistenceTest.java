@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -356,6 +357,79 @@ class ProjectPersistenceTest {
             assertFalse(persistence.extensionData().childObjectKeys().stream()
                             .anyMatch(key -> key.contains("probe")),
                     "the probe key must be cleaned up");
+        });
+    }
+
+    // -- Burp's PersistedList does not contain what it says ------------------
+
+    @Test
+    void loadingSurvivesAStringListThatDoesNotContainStrings() {
+        // Reproduces the ClassCastException that stopped the extension loading:
+        // getStringList hands back burp.Zaj9 instances, erasure lets them into a
+        // List<String>, and the for-each blows up at an unrelated line.
+        forBothPersistenceModes(persistence -> {
+            ConfigStore store = new ConfigStore(persistence.api());
+            Identity user = new Identity("id-1", "User 1");
+            user.authScript("return [cookies: ['sid': token]]");
+            user.credentials().put("username", "alice");
+            user.credentials().put("password", "s3cret");
+            store.save(new Settings(), List.of(user));
+
+            FakePersistence.poisonStringLists(true);
+            try {
+                List<Identity> restored = new ArrayList<>();
+                assertDoesNotThrow(() -> new ConfigStore(persistence.api())
+                        .load(new Settings(), restored));
+
+                assertEquals(1, restored.size(), "the identity must still be found");
+                assertEquals("User 1", restored.get(0).name());
+                assertEquals(user.authScript(), restored.get(0).authScript());
+                assertEquals("alice", restored.get(0).credentials().get("username"));
+                assertEquals("s3cret", restored.get(0).credentials().get("password"));
+            } finally {
+                FakePersistence.poisonStringLists(false);
+            }
+        });
+    }
+
+    @Test
+    void storedResultsSurviveTheSameThing() {
+        forBothPersistenceModes(persistence -> {
+            Settings settings = new Settings();
+            ResultsRepository repository = new ResultsRepository(persistence.api(), settings);
+            repository.load();
+            repository.append(record(1, "GET", 200, Verdict.BYPASSED, "reached it"));
+            repository.shutdown();
+
+            FakePersistence.poisonStringLists(true);
+            try {
+                ResultsRepository reopened = new ResultsRepository(persistence.api(), settings);
+                List<AuthTestRecord> restored = assertDoesNotThrow(reopened::load);
+                assertEquals(1, restored.size());
+                reopened.shutdown();
+            } finally {
+                FakePersistence.poisonStringLists(false);
+            }
+        });
+    }
+
+    @Test
+    void identityOrderStillSurvivesWhenListsAreUnreadable() {
+        forBothPersistenceModes(persistence -> {
+            ConfigStore store = new ConfigStore(persistence.api());
+            store.save(new Settings(), List.of(
+                    new Identity("c", "Third"), new Identity("a", "First"), new Identity("b", "Second")));
+
+            FakePersistence.poisonStringLists(true);
+            try {
+                List<Identity> restored = new ArrayList<>();
+                new ConfigStore(persistence.api()).load(new Settings(), restored);
+                // Order is written as a plain string now, so it is unaffected.
+                assertEquals(List.of("Third", "First", "Second"),
+                        restored.stream().map(Identity::name).toList());
+            } finally {
+                FakePersistence.poisonStringLists(false);
+            }
         });
     }
 

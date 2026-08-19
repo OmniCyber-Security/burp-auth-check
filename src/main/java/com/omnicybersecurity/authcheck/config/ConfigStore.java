@@ -2,13 +2,13 @@ package com.omnicybersecurity.authcheck.config;
 
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.core.ToolType;
-import burp.api.montoya.persistence.PersistedList;
 import burp.api.montoya.persistence.PersistedObject;
 import com.omnicybersecurity.authcheck.model.Identity;
 import com.omnicybersecurity.authcheck.util.Text;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +32,8 @@ public final class ConfigStore {
     private static final String IDENTITIES_KEY = "identities";
     private static final String CREDENTIALS_KEY = "credentials";
     private static final String ORDER_KEY = "order";
+    /** Credential order lives on the identity node, not among the credentials. */
+    private static final String CREDENTIAL_ORDER_KEY = "credentialOrder";
 
     private final MontoyaApi api;
 
@@ -121,18 +123,11 @@ public final class ConfigStore {
         }
         identities.clear();
 
-        // The explicit order list preserves the tester's row order; any ids that
-        // are only in the child map (e.g. hand-edited project) get appended.
-        List<String> ids = new ArrayList<>();
-        PersistedList<String> order = store.getStringList(ORDER_KEY);
-        if (order != null) {
-            ids.addAll(order);
-        }
-        for (String key : store.childObjectKeys()) {
-            if (!ids.contains(key)) {
-                ids.add(key);
-            }
-        }
+        // childObjectKeys() is authoritative for which identities exist; the order
+        // entry only says how to arrange them, and anything in it that does not
+        // resolve to a child is discarded.
+        List<String> ids = PersistedLists.reconcile(
+                PersistedLists.readOrder(store, ORDER_KEY), store.childObjectKeys());
 
         for (String id : ids) {
             PersistedObject node = store.getChildObject(id);
@@ -155,18 +150,17 @@ public final class ConfigStore {
 
             PersistedObject creds = node.getChildObject(CREDENTIALS_KEY);
             if (creds != null) {
-                // stringKeys() has no defined order, so restore via the saved list.
-                List<String> credOrder = new ArrayList<>();
-                PersistedList<String> savedOrder = creds.getStringList(ORDER_KEY);
-                if (savedOrder != null) {
-                    credOrder.addAll(savedOrder);
+                // stringKeys() has no defined order, so the tester's row order is
+                // restored from a separate entry on the identity node -- outside
+                // the credential map, so it cannot collide with a credential name.
+                Set<String> present = new LinkedHashSet<>(creds.stringKeys());
+                present.remove(ORDER_KEY);
+
+                List<String> preferred = PersistedLists.readOrder(node, CREDENTIAL_ORDER_KEY);
+                if (preferred.isEmpty()) {
+                    preferred = PersistedLists.readOrder(creds, ORDER_KEY);
                 }
-                for (String key : creds.stringKeys()) {
-                    if (!ORDER_KEY.equals(key) && !credOrder.contains(key)) {
-                        credOrder.add(key);
-                    }
-                }
-                for (String key : credOrder) {
+                for (String key : PersistedLists.reconcile(preferred, present)) {
                     String value = creds.getString(key);
                     if (value != null) {
                         identity.credentials().put(key, value);
@@ -222,12 +216,12 @@ public final class ConfigStore {
         cfg.setString("sourceTools", String.join(",", toolNames));
 
         PersistedObject store = PersistedObject.persistedObject();
-        PersistedList<String> order = PersistedList.persistedStringList();
+        List<String> order = new ArrayList<>();
         for (Identity identity : identities) {
             order.add(identity.id());
             store.setChildObject(identity.id(), toPersisted(identity));
         }
-        store.setStringList(ORDER_KEY, order);
+        PersistedLists.writeOrder(store, ORDER_KEY, order);
         cfg.setChildObject(IDENTITIES_KEY, store);
 
         api.persistence().extensionData().setChildObject(ROOT_KEY, cfg);
@@ -249,7 +243,7 @@ public final class ConfigStore {
         node.setLong("refreshIntervalSeconds", identity.refreshIntervalSeconds());
 
         PersistedObject creds = PersistedObject.persistedObject();
-        PersistedList<String> credOrder = PersistedList.persistedStringList();
+        List<String> credOrder = new ArrayList<>();
         for (Map.Entry<String, String> entry : identity.credentialsSnapshot().entrySet()) {
             if (Text.isBlank(entry.getKey()) || ORDER_KEY.equals(entry.getKey())) {
                 continue;
@@ -257,8 +251,8 @@ public final class ConfigStore {
             creds.setString(entry.getKey(), Text.nullToEmpty(entry.getValue()));
             credOrder.add(entry.getKey());
         }
-        creds.setStringList(ORDER_KEY, credOrder);
         node.setChildObject(CREDENTIALS_KEY, creds);
+        PersistedLists.writeOrder(node, CREDENTIAL_ORDER_KEY, credOrder);
         return node;
     }
 

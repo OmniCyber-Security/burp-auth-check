@@ -39,6 +39,8 @@ public final class FakePersistence implements AutoCloseable {
     private final MontoyaObjectFactory previousFactory;
     private final PersistedObject extensionData;
     private final boolean liveChildren;
+    /** When set, getStringList returns elements that are not Strings. */
+    private static volatile boolean poisonStringLists;
 
     private FakePersistence(boolean liveChildren) {
         this.liveChildren = liveChildren;
@@ -120,9 +122,44 @@ public final class FakePersistence implements AutoCloseable {
                 });
     }
 
+    /**
+     * Makes {@code getStringList} return non-String elements, as Burp's own
+     * implementation does. Type erasure lets those into a {@code List<String>}
+     * unnoticed, and the cast fails later somewhere unrelated.
+     */
+    public static void poisonStringLists(boolean poisoned) {
+        poisonStringLists = poisoned;
+    }
+
     /** Installs only the object factory, for tests that need no project store. */
     public static FakePersistence installFactoryOnly() {
         return new FakePersistence(true);
+    }
+
+    /** A list whose elements are deliberately not Strings. */
+    @SuppressWarnings("unchecked")
+    private static PersistedList<Object> opaqueList(List<?> source) {
+        List<Object> opaque = new ArrayList<>();
+        for (Object element : source) {
+            // Stands in for burp.Zaj9: not a String, but describes itself as one.
+            opaque.add(new Object() {
+                @Override
+                public String toString() {
+                    return String.valueOf(element);
+                }
+            });
+        }
+        return (PersistedList<Object>) Proxy.newProxyInstance(
+                FakePersistence.class.getClassLoader(), new Class<?>[] { PersistedList.class },
+                (proxy, method, args) -> {
+                    if ("equals".equals(method.getName())) {
+                        return proxy == args[0];
+                    }
+                    if ("hashCode".equals(method.getName())) {
+                        return System.identityHashCode(proxy);
+                    }
+                    return method.invoke(opaque, args);
+                });
     }
 
     /** A PersistedList backed by a plain ArrayList. */
@@ -186,7 +223,13 @@ public final class FakePersistence implements AutoCloseable {
             if (name.startsWith("get")) {
                 String type = name.substring(3);
                 Object value = map(type).get(args[0]);
-                return "ChildObject".equals(type) ? viewOf(value) : value;
+                if ("ChildObject".equals(type)) {
+                    return viewOf(value);
+                }
+                if (poisonStringLists && "StringList".equals(type) && value instanceof List<?> list) {
+                    return opaqueList(list);
+                }
+                return value;
             }
             if (name.startsWith("set")) {
                 String type = name.substring(3);
