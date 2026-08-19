@@ -47,6 +47,7 @@ public final class SettingsPanel extends JPanel {
 
     private final JTextField skipExtensions = new JTextField(48);
     private final JTextField skipStatusCodes = new JTextField(24);
+    private final JTextField skipMethods = new JTextField(24);
     private final JTextField includeUrlRegex = new JTextField(48);
     private final JTextField excludeUrlRegex = new JTextField(48);
     private final JTextField threadCount = new JTextField(6);
@@ -106,6 +107,11 @@ public final class SettingsPanel extends JPanel {
         form.addWide(skipStaticResources);
         form.add("Skip these file extensions:", skipExtensions);
         form.add("Skip these baseline statuses:", skipStatusCodes);
+        form.add("Skip these HTTP methods:", skipMethods);
+        form.addWide(UiUtils.hint(
+                "Filtered methods are never auto-tested, so they do not appear in the results at all. "
+                + "OPTIONS is filtered by default: a CORS preflight carries no authorisation decision, and "
+                + "testing one per request would triple the traffic for nothing."));
         form.add("Only URLs matching (regex):", includeUrlRegex);
         form.add("Never URLs matching (regex):", excludeUrlRegex);
         form.addWide(UiUtils.hint(
@@ -185,6 +191,7 @@ public final class SettingsPanel extends JPanel {
 
         skipExtensions.setText(settings.skipExtensions());
         skipStatusCodes.setText(settings.skipStatusCodes());
+        skipMethods.setText(settings.skipMethods());
         includeUrlRegex.setText(settings.includeUrlRegex());
         excludeUrlRegex.setText(settings.excludeUrlRegex());
         threadCount.setText(String.valueOf(settings.threadCount()));
@@ -229,6 +236,7 @@ public final class SettingsPanel extends JPanel {
 
         settings.skipExtensions(skipExtensions.getText());
         settings.skipStatusCodes(skipStatusCodes.getText());
+        settings.skipMethods(skipMethods.getText());
         settings.includeUrlRegex(includeUrlRegex.getText());
         settings.excludeUrlRegex(excludeUrlRegex.getText());
         settings.deniedStatusCodes(deniedStatusCodes.getText());
@@ -274,6 +282,7 @@ public final class SettingsPanel extends JPanel {
         settings.sourceTools(defaults.sourceTools());
         settings.skipExtensions(defaults.skipExtensions());
         settings.skipStatusCodes(defaults.skipStatusCodes());
+        settings.skipMethods(defaults.skipMethods());
         settings.includeUrlRegex(defaults.includeUrlRegex());
         settings.excludeUrlRegex(defaults.excludeUrlRegex());
         settings.deniedStatusCodes(defaults.deniedStatusCodes());

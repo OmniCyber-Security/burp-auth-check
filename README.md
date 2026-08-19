@@ -351,8 +351,12 @@ throttles testing.
 
 **What gets tested** — auto-test on/off; test unauthenticated; restrict to Burp
 scope; which tools' traffic to watch (Proxy and Repeater by default); dedupe by
-endpoint; skip static resources; skip baseline status codes; URL include/exclude
-regexes.
+endpoint; skip static resources; skip baseline status codes; **skip HTTP methods**;
+URL include/exclude regexes.
+
+Filtered methods never reach the results at all. `OPTIONS` is skipped by default: a
+CORS preflight carries no authorisation decision, and testing one per request would
+triple the traffic for nothing. Clear the list to test every method.
 
 Requests sent by extensions are **never** auto-tested, regardless of settings —
 otherwise the extension would test its own replays forever. "Send to Auth Check"

@@ -145,6 +145,13 @@ public final class HelpPanel extends JPanel {
                 ("Auth Check: authenticate as ..."). Add one to a session-handling rule in project options and
                 Scanner, Intruder and Repeater get live credentials too.</p>
 
+                <h3>Keeping the noise down</h3>
+                <p>Settings lets you drop traffic before it costs a replay: out-of-scope URLs, static resources,
+                uninteresting baseline statuses, URL patterns, and <b>HTTP methods</b>. <code>OPTIONS</code> is
+                filtered by default -- a CORS preflight carries no authorisation decision, and testing one per
+                request would triple the traffic for nothing. Filtered traffic never appears in the results;
+                "Send to Auth Check" ignores every filter.</p>
+
                 <h2>Reading the verdicts</h2>
                 <table>
                   <tr><td><b>Bypassed</b></td>

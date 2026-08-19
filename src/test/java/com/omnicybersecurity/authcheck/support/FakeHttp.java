@@ -58,6 +58,7 @@ public final class FakeHttp {
         String method = "GET";
         String url = "https://target.example.com/api/orders/1";
         String path = "/api/orders/1";
+        String fileExtension = "";
         String body = "";
 
         RequestState copy() {
@@ -68,6 +69,7 @@ public final class FakeHttp {
             repeated.forEach((k, v) -> clone.repeated.put(k, new ArrayList<>(v)));
             clone.url = url;
             clone.path = path;
+            clone.fileExtension = fileExtension;
             clone.body = body;
             return clone;
         }
@@ -105,6 +107,19 @@ public final class FakeHttp {
 
     public static HttpRequest request(Map<String, String> headers) {
         return request(headers, "GET");
+    }
+
+    /** A request for filter tests: method, URL and derived file extension. */
+    public static HttpRequest requestFor(String method, String url) {
+        RequestState state = new RequestState();
+        state.method = method;
+        state.url = url;
+        String withoutQuery = url.contains("?") ? url.substring(0, url.indexOf('?')) : url;
+        int lastDot = withoutQuery.lastIndexOf('.');
+        int lastSlash = withoutQuery.lastIndexOf('/');
+        state.fileExtension = lastDot > lastSlash ? withoutQuery.substring(lastDot + 1) : "";
+        state.path = withoutQuery.replaceFirst("^https?://[^/]+", "");
+        return build(state);
     }
 
     /** Mirrors {@code HttpRequest.httpRequestFromUrl}: a GET carrying the URL. */
@@ -149,6 +164,7 @@ public final class FakeHttp {
                     case "method" -> state.method;
                     case "url" -> state.url;
                     case "path", "pathWithoutQuery" -> state.path;
+                    case "fileExtension" -> state.fileExtension;
                     case "bodyToString" -> state.body;
                     case "withMethod" -> {
                         RequestState next = state.copy();

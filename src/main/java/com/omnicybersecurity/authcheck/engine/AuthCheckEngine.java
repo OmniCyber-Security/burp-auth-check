@@ -45,6 +45,7 @@ public final class AuthCheckEngine {
     private final SessionManager sessionManager;
     private final ResponseAnalyser analyser;
     private final RequestMutator mutator;
+    private final TrafficFilter filter;
     private final RecordStore records;
 
     private final ThreadPoolExecutor autoExecutor;
@@ -65,6 +66,7 @@ public final class AuthCheckEngine {
         this.records = records;
         this.analyser = new ResponseAnalyser(api, configuration);
         this.mutator = new RequestMutator(configuration);
+        this.filter = new TrafficFilter(configuration.settings(), url -> api.scope().isInScope(url));
 
         Settings settings = configuration.settings();
         AtomicInteger threadCounter = new AtomicInteger();
@@ -124,7 +126,7 @@ public final class AuthCheckEngine {
         if (!hasSomethingToTest()) {
             return;
         }
-        if (!passesFilters(request, response, settings)) {
+        if (!filter.shouldTest(request, response)) {
             skippedCount.incrementAndGet();
             return;
         }
@@ -165,33 +167,6 @@ public final class AuthCheckEngine {
     }
 
     // -- filtering -----------------------------------------------------------
-
-    private boolean passesFilters(HttpRequest request, HttpResponse response, Settings settings) {
-        String url = request.url();
-        if (settings.onlyInScope() && !api.scope().isInScope(url)) {
-            return false;
-        }
-        if (settings.skipStaticResources()) {
-            String extension = request.fileExtension();
-            if (!Text.isBlank(extension)) {
-                String needle = extension.toLowerCase(Locale.ROOT);
-                for (String skip : Text.splitList(settings.skipExtensions())) {
-                    if (needle.equalsIgnoreCase(skip)) {
-                        return false;
-                    }
-                }
-            }
-        }
-        if (response != null && Text.splitInts(settings.skipStatusCodes()).contains((int) response.statusCode())) {
-            return false;
-        }
-        String include = settings.includeUrlRegex();
-        if (!Text.isBlank(include) && !Patterns.find(include, url)) {
-            return false;
-        }
-        String exclude = settings.excludeUrlRegex();
-        return Text.isBlank(exclude) || !Patterns.find(exclude, url);
-    }
 
     private String dedupeKey(HttpRequest request, Settings settings) {
         StringBuilder key = new StringBuilder()

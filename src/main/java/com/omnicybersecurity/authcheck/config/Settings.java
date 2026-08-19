@@ -32,6 +32,8 @@ public final class Settings {
     private volatile String includeUrlRegex = "";
     private volatile String excludeUrlRegex = "";
     private volatile String skipStatusCodes = "301, 302, 304, 404";
+    // CORS preflights are not an authorisation decision and arrive constantly.
+    private volatile String skipMethods = "OPTIONS";
 
     private volatile int threadCount = 4;
     private volatile int queueCapacity = 500;
@@ -160,6 +162,15 @@ public final class Settings {
 
     public void skipStatusCodes(String value) {
         this.skipStatusCodes = Text.nullToEmpty(value);
+    }
+
+    /** HTTP methods never auto-tested, e.g. OPTIONS. Comma separated. */
+    public String skipMethods() {
+        return skipMethods;
+    }
+
+    public void skipMethods(String value) {
+        this.skipMethods = Text.nullToEmpty(value);
     }
 
     public int threadCount() {
