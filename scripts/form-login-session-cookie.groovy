@@ -1,4 +1,6 @@
 /*
+ * HTML form login -> session cookie
+ *
  * Classic HTML form login: fetch the login page for its CSRF token, post the
  * credentials, keep the session cookie.
  *

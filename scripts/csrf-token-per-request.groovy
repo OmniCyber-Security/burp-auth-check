@@ -1,4 +1,6 @@
 /*
+ * Session cookie + CSRF token in the body
+ *
  * Session cookie plus a CSRF token that has to go into the request body.
  *
  * Shows two things the simpler examples do not:

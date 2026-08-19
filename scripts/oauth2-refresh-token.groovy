@@ -1,4 +1,6 @@
 /*
+ * OAuth2 password grant, reusing the refresh token
+ *
  * OAuth2 password grant that reuses its refresh token.
  *
  * This is the pattern for applications whose access tokens die in a minute or

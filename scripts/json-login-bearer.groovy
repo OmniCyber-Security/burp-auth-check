@@ -1,4 +1,6 @@
 /*
+ * JSON login -> bearer token
+ *
  * JSON login that returns a bearer token.
  *
  * Credential variables expected on the identity:

@@ -70,6 +70,9 @@ public final class AuthScriptEngine {
                 "com.omnicybersecurity.authcheck.model.ParamSpec");
         imports.addStarImports("groovy.json", "java.util.regex");
         config.addCompilationCustomizers(imports);
+        // Gives the bindings real types, so an editor with the jar on its
+        // classpath can complete creds./http./vars. and check signatures.
+        config.setScriptBaseClass(AuthScriptBase.class.getName());
         // Scripts are the tester's own code running in their own Burp; the point
         // of the extension is to let them do whatever the target's login needs.
         return new GroovyClassLoader(AuthScriptEngine.class.getClassLoader(), config);

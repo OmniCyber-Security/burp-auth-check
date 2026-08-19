@@ -214,10 +214,27 @@ Worked examples are in [`scripts/`](scripts/):
 
 | File | Pattern |
 |---|---|
+| `api-key-header.groovy` | Static API key or token — no login flow |
 | `json-login-bearer.groovy` | JSON login → bearer token |
 | `form-login-session-cookie.groovy` | HTML form login with CSRF → session cookie |
 | `oauth2-refresh-token.groovy` | Password grant, reusing the refresh token via `vars` |
 | `csrf-token-per-request.groovy` | Session cookie plus a CSRF token in the body |
+| `login-then-assume-role.groovy` | Two-step: log in, then elevate to a role |
+| `totp-mfa-login.groovy` | Login behind a TOTP second factor, code generated |
+| `_api-reference.groovy` | Every binding and helper, with types. Not a template |
+
+Those files **are** the templates in the extension's *Insert template* menu — the
+build copies them into the jar, so there is no second copy to keep in step. Drop a
+new `.groovy` in `scripts/` and it appears in the menu after a rebuild; its first
+line of comment prose becomes the entry. A test compiles every one of them, so a
+broken example fails the build instead of reaching a tester.
+
+Scripts are compiled against `AuthScriptBase`, which declares `creds`, `http`,
+`vars`, `log`, `api` and `identity` with real types. Put the jar on an IDE's
+classpath and those complete and type-check while you write.
+[`scripts/README.md`](scripts/README.md) has the setup, and
+[`scripts/_api-reference.groovy`](scripts/_api-reference.groovy) is the whole surface
+in one file.
 
 Everything a script sends is recorded and shown on the identity's **Login traffic**
 tab — the exact requests and responses of the last login, kept in the project. It is
