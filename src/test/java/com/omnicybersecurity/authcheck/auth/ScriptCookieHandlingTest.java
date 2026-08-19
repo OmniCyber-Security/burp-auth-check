@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -79,6 +80,29 @@ class ScriptCookieHandlingTest {
         AuthOutcome outcome = run("return ['X-Api-Key': 'k-1']");
 
         assertEquals(Map.of("X-Api-Key", "k-1"), outcome.material().headers());
+    }
+
+    // -- a lookup that missed -----------------------------------------------
+
+    @Test
+    void anAllBlankSessionIsAFailureNotASuccess() {
+        // http.cookies(resp)['wrong-name'] returns null. Sending ".x=" would look
+        // authenticated and make every verdict downstream meaningless.
+        AuthOutcome outcome = run("def t = null; return [cookies: ['.elevate-session-id': t]]");
+
+        assertFalse(outcome.success(), "a blank session must not report success");
+        assertTrue(outcome.error().contains(".elevate-session-id"),
+                () -> "the error must name the offender, was: " + outcome.error());
+    }
+
+    @Test
+    void aPartiallyBlankMaterialIsKeptButWarned() {
+        AuthOutcome outcome = run(
+                "return [cookies: ['sid': 'real-value', 'csrf': '']]");
+
+        assertTrue(outcome.success(), "there is still a usable value");
+        assertTrue(outcome.log().contains("cookie csrf"),
+                () -> "expected a warning naming the blank entry, log was:\n" + outcome.log());
     }
 
     // -- losing Set-Cookie to a redirect ------------------------------------

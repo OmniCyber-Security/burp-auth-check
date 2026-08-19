@@ -14,6 +14,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -133,6 +134,20 @@ public final class AuthScriptEngine {
                             + "[headers: ['Authorization': \"Bearer $token\"]].",
                             scriptHttp.transcript());
                 }
+            }
+            // A blank token or session cookie is worse than none: the replay still
+            // looks authenticated, so every verdict it produces is meaningless.
+            if (!material.isEmpty() && !material.hasUsableValue()) {
+                return new AuthOutcome(false, AuthMaterial.empty(), log.text(),
+                        "Every value in the auth material is blank (" + material.blankValuedEntries()
+                        + "). A lookup in the script probably missed -- check the names against the "
+                        + "login response on the Login traffic tab.",
+                        scriptHttp.transcript());
+            }
+            List<String> blank = material.blankValuedEntries();
+            if (!blank.isEmpty()) {
+                log.warn("Blank value(s) in the auth material: " + blank
+                        + ". These are sent as empty, which usually means a lookup in the script missed.");
             }
             return new AuthOutcome(true, material, log.text(), null, scriptHttp.transcript());
         } catch (TimeoutException e) {

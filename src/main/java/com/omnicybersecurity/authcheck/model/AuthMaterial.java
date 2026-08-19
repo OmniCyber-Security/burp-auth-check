@@ -74,6 +74,51 @@ public final class AuthMaterial {
     }
 
     /**
+     * Names of entries whose value is blank. A blank session cookie or token is
+     * almost always a script bug -- a lookup that missed -- and it is worse than
+     * no material at all, because the replay still looks authenticated.
+     */
+    public List<String> blankValuedEntries() {
+        List<String> blank = new ArrayList<>();
+        headers.forEach((name, value) -> {
+            if (Text.isBlank(value)) {
+                blank.add("header " + name);
+            }
+        });
+        cookies.forEach((name, value) -> {
+            if (Text.isBlank(value)) {
+                blank.add("cookie " + name);
+            }
+        });
+        for (ParamSpec param : params) {
+            if (Text.isBlank(param.value())) {
+                blank.add("param " + param.name());
+            }
+        }
+        return blank;
+    }
+
+    /** True when at least one header, cookie or param carries a real value. */
+    public boolean hasUsableValue() {
+        for (String value : headers.values()) {
+            if (!Text.isBlank(value)) {
+                return true;
+            }
+        }
+        for (String value : cookies.values()) {
+            if (!Text.isBlank(value)) {
+                return true;
+            }
+        }
+        for (ParamSpec param : params) {
+            if (!Text.isBlank(param.value())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Identity of the material itself, ignoring when it was obtained. Used to
      * tell whether a re-authentication actually produced a new session -- if it
      * did not, there is no point replaying the request.
