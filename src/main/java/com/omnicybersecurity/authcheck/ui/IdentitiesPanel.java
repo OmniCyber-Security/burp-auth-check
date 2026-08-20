@@ -7,6 +7,7 @@ import burp.api.montoya.ui.editor.HttpRequestEditor;
 import burp.api.montoya.ui.editor.HttpResponseEditor;
 import com.omnicybersecurity.authcheck.auth.AuthOutcome;
 import com.omnicybersecurity.authcheck.auth.AuthScriptEngine;
+import com.omnicybersecurity.authcheck.auth.ScriptParamExtractor;
 import com.omnicybersecurity.authcheck.auth.SessionManager;
 import com.omnicybersecurity.authcheck.config.Configuration;
 import com.omnicybersecurity.authcheck.config.IdentityTransfer;
@@ -29,10 +30,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
-import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JToolBar;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -71,9 +70,7 @@ public final class IdentitiesPanel extends JPanel {
     private final JCheckBox enabledBox = new JCheckBox("Include this identity in tests");
     private final JTextField notesField = new JTextField(24);
 
-    private final CredentialsTableModel credentialsModel;
-    private final JTable credentialsTable;
-    private final JCheckBox showValuesBox = new JCheckBox("Show values");
+    private final CredentialsForm credentialsForm;
 
     private final JTextField stripHeadersField = new JTextField(40);
     private final JTextArea staticHeadersArea;
@@ -110,6 +107,8 @@ public final class IdentitiesPanel extends JPanel {
     private final Timer saveTimer;
     /** Coalesces identity-roster changes (renames) that trigger re-registration. */
     private final Timer structureTimer;
+    /** Waits for the tester to stop typing before re-reading the params block. */
+    private final Timer paramsTimer;
 
     public IdentitiesPanel(MontoyaApi api, Configuration configuration, SessionManager sessionManager,
             AuthScriptEngine scriptEngine, ResultsRepository repository) {
@@ -127,14 +126,17 @@ public final class IdentitiesPanel extends JPanel {
         this.authLogArea = UiUtils.codeArea(api, 8, 80);
         this.authLogArea.setEditable(false);
 
-        this.credentialsModel = new CredentialsTableModel(this::onFieldEdited);
-        this.credentialsTable = new JTable(credentialsModel);
+        this.credentialsForm = new CredentialsForm(api, this::onFieldEdited);
 
         // Persisting on every keystroke would rewrite the project constantly.
         this.saveTimer = new Timer(1_200, e -> configuration.save());
         this.saveTimer.setRepeats(false);
         this.structureTimer = new Timer(1_200, e -> configuration.identitiesChanged());
         this.structureTimer.setRepeats(false);
+        // Re-deriving the credentials form means parsing the script, so it waits
+        // for a pause in typing rather than running on every keystroke.
+        this.paramsTimer = new Timer(500, e -> refreshDeclaredParams());
+        this.paramsTimer.setRepeats(false);
 
         buildUi();
         reloadList();
@@ -248,33 +250,15 @@ public final class IdentitiesPanel extends JPanel {
     }
 
     private JComponent buildCredentialsTab() {
-        credentialsTable.setPreferredScrollableViewportSize(new Dimension(420, 140));
-        credentialsTable.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
-
-        JToolBar credentialButtons = new JToolBar();
-        credentialButtons.setFloatable(false);
-        JButton addCredential = new JButton("Add");
-        addCredential.addActionListener(e -> credentialsModel.addRow());
-        credentialButtons.add(addCredential);
-        JButton removeCredential = new JButton("Remove");
-        removeCredential.addActionListener(e -> credentialsModel.removeRow(credentialsTable.getSelectedRow()));
-        credentialButtons.add(removeCredential);
-        credentialButtons.add(showValuesBox);
-        showValuesBox.addActionListener(e -> credentialsModel.setShowValues(showValuesBox.isSelected()));
-
-        JPanel credentials = new JPanel(new BorderLayout());
-        credentials.add(new JScrollPane(credentialsTable), BorderLayout.CENTER);
-        credentials.add(credentialButtons, BorderLayout.SOUTH);
-        credentials.setBorder(BorderFactory.createTitledBorder(
-                "Credential variables -- read by scripts as creds.<name>, saved in the Burp project"));
-
         UiUtils.Form form = new UiUtils.Form();
         form.add("Name:", nameField);
         form.addWide(enabledBox);
         form.add("Notes:", notesField);
-        form.add("Credentials:", credentials, true);
+        form.add("Credentials:", credentialsForm, true);
         form.addWide(UiUtils.hint(
-                "Credentials are stored unencrypted in the Burp project file. Treat the project as sensitive."));
+                "A script that declares a params block gets a form with its own fields; one that does not gets "
+                + "the name/value table. Either way the values are stored unencrypted in the Burp project file, "
+                + "so treat the project as sensitive."));
         return form.panel();
     }
 
@@ -306,7 +290,7 @@ public final class IdentitiesPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "The script compiles.",
                         "Auth Check", JOptionPane.INFORMATION_MESSAGE);
             } else {
-                showLongMessage("Script does not compile", error);
+                showLongMessage("Script problem", error);
             }
         });
         top.add(check);
@@ -490,6 +474,9 @@ public final class IdentitiesPanel extends JPanel {
         // The compiled-script cache is keyed by source hash, so an edited script
         // never hits a stale class and the cache needs no explicit invalidation.
         bindArea(scriptArea, Identity::authScript);
+        // Editing the script is what changes the credentials form, including
+        // when the change arrives as a whole template or a loaded file.
+        scriptArea.getDocument().addDocumentListener(new SimpleDocumentListener(paramsTimer::restart));
 
         bindText(refreshIntervalField, this::currentIdentity, (identity, value) -> {
             try {
@@ -537,11 +524,24 @@ public final class IdentitiesPanel extends JPanel {
         }));
     }
 
+    /**
+     * Re-reads the params block from the script in the editor and re-draws the
+     * credentials form to match. Values already entered survive it, so this is
+     * safe to run while the tester is still editing.
+     */
+    private void refreshDeclaredParams() {
+        credentialsForm.setParams(ScriptParamExtractor.extract(scriptArea.getText()));
+        Identity identity = currentIdentity();
+        if (identity != null && !loading) {
+            credentialsForm.applyTo(identity);
+        }
+    }
+
     /** Marks the model dirty and schedules a debounced project save. */
     private void onFieldEdited() {
         Identity identity = currentIdentity();
         if (identity != null && !loading) {
-            credentialsModel.applyTo(identity);
+            credentialsForm.applyTo(identity);
             saveTimer.restart();
         }
     }
@@ -584,7 +584,8 @@ public final class IdentitiesPanel extends JPanel {
             sessionValidRegexField.setText(identity.sessionValidRegex());
             scriptArea.setText(identity.authScript());
             scriptArea.setCaretPosition(0);
-            credentialsModel.load(identity);
+            credentialsForm.setParams(ScriptParamExtractor.extract(identity.authScript()));
+            credentialsForm.load(identity);
             refreshSessionStatus(identity);
             loadTranscript(identity);
         } finally {
@@ -605,17 +606,17 @@ public final class IdentitiesPanel extends JPanel {
         scriptArea.setText("");
         authLogArea.setText("");
         sessionStatusLabel.setText(" ");
-        credentialsModel.load(null);
+        credentialsForm.load(null);
         loadTranscript(null);
     }
 
     private void setFieldsEnabled(boolean enabled) {
         for (JComponent field : new JComponent[] { nameField, enabledBox, notesField, stripHeadersField,
                 staticHeadersArea, tokenHeaderField, refreshIntervalField, sessionInvalidRegexField,
-                reauthOnDeniedBox, sessionCheckUrlField, sessionValidRegexField, scriptArea,
-                credentialsTable, showValuesBox }) {
+                reauthOnDeniedBox, sessionCheckUrlField, sessionValidRegexField, scriptArea }) {
             field.setEnabled(enabled);
         }
+        credentialsForm.setFormEnabled(enabled);
     }
 
     private void refreshSessionStatus(Identity identity) {
@@ -644,7 +645,7 @@ public final class IdentitiesPanel extends JPanel {
         if (identity == null) {
             return;
         }
-        credentialsModel.applyTo(identity);
+        credentialsForm.applyTo(identity);
         configuration.save();
         sessionStatusLabel.setText("  Authenticating...");
         authLogArea.setText("");
@@ -736,7 +737,7 @@ public final class IdentitiesPanel extends JPanel {
         // Flush any in-progress edit before writing.
         Identity current = currentIdentity();
         if (current != null) {
-            credentialsModel.applyTo(current);
+            credentialsForm.applyTo(current);
         }
 
         JFileChooser chooser = new JFileChooser();

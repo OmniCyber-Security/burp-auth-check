@@ -95,6 +95,18 @@ public final class AuthScriptEngine {
             return new AuthOutcome(true, AuthMaterial.empty(), log.text(), null);
         }
 
+        // Everything the script declared about its credentials, read from the
+        // source without running it. Checking here rather than in the UI means a
+        // run started from a session-handling rule fails the same way, with the
+        // same message, as one started from the Identities tab.
+        ScriptParams declared = ScriptParamExtractor.extract(identity.authScript());
+        Map<String, String> entered = identity.credentialsSnapshot();
+        Map<String, String> credentials = declared.withDefaults(entered);
+        AuthOutcome refusal = checkCredentials(declared, entered, credentials, log);
+        if (refusal != null) {
+            return refusal;
+        }
+
         // One recording helper per attempt: the transcript belongs to this login,
         // not to every login the identity has ever performed.
         ScriptHttp scriptHttp = new ScriptHttp(api, settings, true);
@@ -103,7 +115,7 @@ public final class AuthScriptEngine {
         binding.setVariable("api", api);
         binding.setVariable("http", scriptHttp);
         binding.setVariable("log", log);
-        binding.setVariable("creds", identity.credentialsSnapshot());
+        binding.setVariable("creds", credentials);
         binding.setVariable("vars", vars);
         binding.setVariable("identity", identity.name());
         binding.setVariable("material", AuthMaterial.builder());
@@ -175,6 +187,53 @@ public final class AuthScriptEngine {
         }
     }
 
+    /**
+     * Refuses the run when the identity cannot satisfy what the script declared,
+     * or null when it can. Failing before the first request is the point: a
+     * login attempted with a missing credential either fails somewhere less
+     * legible or, worse, succeeds as the wrong user.
+     */
+    private AuthOutcome checkCredentials(ScriptParams declared, Map<String, String> entered,
+            Map<String, String> credentials, ScriptLog log) {
+        if (!declared.problems().isEmpty()) {
+            log.error("The params block is not valid.");
+            return new AuthOutcome(false, AuthMaterial.empty(), log.text(),
+                    "The params block in this script is not valid:\n"
+                    + bullets(declared.problems()));
+        }
+
+        List<String> missing = declared.missingRequired(credentials);
+        if (!missing.isEmpty()) {
+            log.error("Missing required credential(s): " + String.join(", ", missing));
+            return new AuthOutcome(false, AuthMaterial.empty(), log.text(),
+                    "This identity is missing " + (missing.size() == 1 ? "a credential" : "credentials")
+                    + " the script requires: " + String.join(", ", missing)
+                    + ".\nFill " + (missing.size() == 1 ? "it" : "them")
+                    + " in on the Credentials tab.");
+        }
+
+        List<String> invalid = declared.valueProblems(credentials);
+        if (!invalid.isEmpty()) {
+            log.error("Credential value(s) do not fit the declared type.");
+            return new AuthOutcome(false, AuthMaterial.empty(), log.text(),
+                    "This identity has credentials the script cannot use:\n" + bullets(invalid));
+        }
+
+        List<String> defaulted = declared.defaulted(entered);
+        if (!defaulted.isEmpty()) {
+            log.info("Using the script's default for: " + String.join(", ", defaulted));
+        }
+        return null;
+    }
+
+    private static String bullets(List<String> lines) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            sb.append("  - ").append(line).append('\n');
+        }
+        return sb.toString();
+    }
+
     private Object execute(Identity identity, Binding binding) throws Exception {
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
         GroovyClassLoader current = loader;
@@ -214,17 +273,24 @@ public final class AuthScriptEngine {
         }
     }
 
-    /** Compile-only check used by the "Check syntax" button. */
+    /**
+     * Compile-only check used by the "Check syntax" button. Also reports a
+     * malformed {@code params} block, which compiles perfectly well -- it is
+     * ordinary Groovy -- but would refuse every run.
+     */
     public String validate(String source) {
         if (source == null || source.isBlank()) {
             return null;
         }
         try {
             loader.parseClass(source, "AuthScriptSyntaxCheck.groovy");
-            return null;
         } catch (Exception e) {
             return describe(e);
         }
+        List<String> problems = ScriptParamExtractor.extract(source).problems();
+        return problems.isEmpty()
+                ? null
+                : "The script compiles, but its params block is not valid:\n" + bullets(problems);
     }
 
     public void shutdown() {

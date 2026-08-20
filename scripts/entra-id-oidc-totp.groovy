@@ -9,25 +9,17 @@
  * generated from the enrolment secret, so the identity re-authenticates
  * unattended for the length of a scan.
  *
- * Credential variables expected on the identity:
- *   client_id     - the app registration this signs into
- *   redirect_uri  - a redirect URI registered on that app
- *   username      - the full UPN, e.g. tester@contoso.onmicrosoft.com
- *   password
- *   tenantId      - optional; the tenant GUID or domain. Set it for a
- *                   single-tenant app registration, which is most of them and
- *                   which rejects the shared endpoint with AADSTS50194. Leave it
- *                   unset only for a genuinely multi-tenant app, which signs in
- *                   through "organizations"
- *   totpSecret    - optional; the base32 secret from the enrolment QR code. Set
- *                   it whenever the account has MFA, which is the case this
- *                   script exists for. Without it, a tenant that asks for a
- *                   second factor fails the identity outright rather than
- *                   carrying on half-authenticated
- *   scope         - optional; defaults to "openid profile offline_access".
- *                   For an API, e.g. "api://<app-id>/.default offline_access"
- *   client_secret - optional; only for a confidential client
- *   authority     - optional; e.g. https://login.microsoftonline.us for GCC High
+ * The credential variables are declared in the params block below, so the
+ * Identities tab renders them as a form. Two are worth reading about before you
+ * fill them in:
+ *
+ *   tenantId   - set it for a single-tenant app registration, which is most of
+ *                them, and which rejects the shared endpoint with AADSTS50194.
+ *                Leave it at the default only for a genuinely multi-tenant app.
+ *   totpSecret - set it whenever the account has MFA, which is the case this
+ *                script exists for. Without it, a tenant that asks for a second
+ *                factor fails the identity outright rather than carrying on
+ *                half-authenticated.
  *
  * Suggested "Session lifetime" settings:
  *   Session lifetime        : 3000, comfortably inside a default 60 minute token
@@ -52,17 +44,33 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import java.security.MessageDigest
 
-['client_id', 'redirect_uri', 'username', 'password'].each { name ->
-    if (!creds[name]) {
-        throw new IllegalStateException("No '${name}' credential set on this identity")
-    }
+params {
+    param 'client_id',     type: STRING, required: true, label: 'Application (client) ID',
+          help: 'The app registration this signs into'
+    param 'redirect_uri',  type: URL,    required: true, label: 'Redirect URI',
+          help: 'Must already be registered on that app registration'
+    param 'username',      type: STRING, required: true, label: 'Username (UPN)',
+          help: 'The full UPN, e.g. tester@contoso.onmicrosoft.com'
+    param 'password',      type: SECRET, required: true
+    param 'tenantId',      type: STRING, default: 'organizations', label: 'Tenant',
+          help: 'Tenant GUID or domain. Required in practice for a single-tenant app, ' +
+              'which rejects the shared endpoint with AADSTS50194'
+    param 'totpSecret',    type: SECRET, label: 'TOTP secret',
+          help: 'Base32 secret from the enrolment QR code. Needed whenever the account has MFA. ' +
+              'Treat it exactly as you treat the password -- it is one'
+    param 'scope',         type: STRING, default: 'openid profile offline_access',
+          help: 'For an API, e.g. "api://<app-id>/.default offline_access"'
+    param 'client_secret', type: SECRET, label: 'Client secret',
+          help: 'Only for a confidential client'
+    param 'authority',     type: URL,    default: 'https://login.microsoftonline.com',
+          help: 'e.g. https://login.microsoftonline.us for GCC High'
 }
 
-def authority = (creds.authority ?: 'https://login.microsoftonline.com').replaceAll('/+$', '')
-// A tenant GUID or domain pins the flow to that one tenant; without it the
-// shared "organizations" endpoint is used, which only a multi-tenant app accepts.
-def tenant = creds.tenantId ?: 'organizations'
-def scope = creds.scope ?: 'openid profile offline_access'
+def authority = creds.authority.replaceAll('/+$', '')
+// A tenant GUID or domain pins the flow to that one tenant; the default sends it
+// to the shared "organizations" endpoint, which only a multi-tenant app accepts.
+def tenant = creds.tenantId
+def scope = creds.scope
 def clientId = creds.client_id
 def redirectUri = creds.redirect_uri
 def tokenUrl = "${authority}/${tenant}/oauth2/v2.0/token"

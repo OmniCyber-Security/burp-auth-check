@@ -5,18 +5,21 @@
  * it, so an identity behind MFA can re-authenticate unattended -- which is the
  * whole point when sessions expire during a scan.
  *
- * Credential variables expected on the identity:
- *   base
- *   username
- *   password
- *   totpSecret - the base32 secret from the enrolment QR code
- *
  * Get the secret at enrolment time: the QR code encodes an otpauth:// URL whose
  * `secret` parameter is this value. Treat it as a password -- it is one.
  */
 
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+
+params {
+    param 'base',       type: URL,    required: true, label: 'Base URL',
+          help: 'e.g. https://target.example.com'
+    param 'username',   type: STRING, required: true
+    param 'password',   type: SECRET, required: true
+    param 'totpSecret', type: SECRET, required: true, label: 'TOTP secret',
+          help: 'The base32 secret from the enrolment QR code. Treat it as a password -- it is one'
+}
 
 /** RFC 6238 TOTP, 6 digits, 30 second step, HMAC-SHA1. */
 def totp = { String base32Secret ->
@@ -47,10 +50,6 @@ def totp = { String base32Secret ->
                  ((hash[offset + 2] & 0xff) << 8) |
                  (hash[offset + 3] & 0xff)
     String.format('%06d', binary % 1_000_000)
-}
-
-if (!creds.totpSecret) {
-    throw new IllegalStateException("No 'totpSecret' credential set on this identity")
 }
 
 // Step one: username and password.

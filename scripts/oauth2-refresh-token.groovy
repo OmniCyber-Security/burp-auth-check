@@ -8,17 +8,20 @@
  * refresh_token exchange. `vars` is the per-identity map that survives between
  * refreshes, which is what makes it possible.
  *
- * Credential variables expected on the identity:
- *   base          - e.g. https://target.example.com
- *   client_id
- *   client_secret - optional
- *   username
- *   password
- *
  * Suggested "Session lifetime" settings:
  *   Session lifetime        : slightly under the token's expires_in, e.g. 240 for a 300s token
  *   Invalid-session pattern : (?i)"error"\s*:\s*"invalid_token"
  */
+
+params {
+    param 'base',          type: URL,    required: true, label: 'Base URL',
+          help: 'e.g. https://target.example.com'
+    param 'client_id',     type: STRING, required: true
+    param 'client_secret', type: SECRET,
+          help: 'Only for a confidential client; leave empty for a public one'
+    param 'username',      type: STRING, required: true
+    param 'password',      type: SECRET, required: true
+}
 
 def tokenUrl = "${creds.base}/oauth/token"
 def resp = null
