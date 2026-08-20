@@ -50,13 +50,14 @@ class BundledScriptsTest {
         // go unnoticed, since the menu is generated.
         Map<String, String> templates = ScriptTemplates.all();
 
-        assertTrue(templates.size() >= 7,
+        assertTrue(templates.size() >= 8,
                 () -> "expected every example to be bundled, got " + templates.keySet());
         assertTrue(templates.containsKey("Static API key or token in a header"), templates.keySet().toString());
         assertTrue(templates.containsKey("JSON login -> bearer token"), templates.keySet().toString());
         assertTrue(templates.containsKey("HTML form login -> session cookie"), templates.keySet().toString());
         assertTrue(templates.containsKey("Login, then assume a role"), templates.keySet().toString());
         assertTrue(templates.containsKey("Login with a TOTP second factor"), templates.keySet().toString());
+        assertTrue(templates.containsKey("Entra ID (Azure AD) OIDC login with TOTP"), templates.keySet().toString());
     }
 
     @Test

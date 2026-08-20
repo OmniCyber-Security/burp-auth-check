@@ -17,6 +17,7 @@ jar; they are not duplicated anywhere in the Java.
 | [`csrf-token-per-request.groovy`](csrf-token-per-request.groovy) | Session cookie plus a CSRF token in the body |
 | [`login-then-assume-role.groovy`](login-then-assume-role.groovy) | Two-step: log in, then elevate to a role |
 | [`totp-mfa-login.groovy`](totp-mfa-login.groovy) | Login behind a TOTP second factor, code generated |
+| [`entra-id-oidc-totp.groovy`](entra-id-oidc-totp.groovy) | Entra ID authorization-code sign-in, TOTP second factor |
 | [`_api-reference.groovy`](_api-reference.groovy) | Every binding and helper, with types. Not a template |
 
 ## Adding one
