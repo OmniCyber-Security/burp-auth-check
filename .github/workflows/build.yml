@@ -107,8 +107,13 @@ jobs:
       github.event_name == 'workflow_dispatch'
       || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    # A job-level block replaces the workflow default outright rather than adding
+    # to it, so everything this job needs has to be listed. `pull-requests: read`
+    # is for reading the release label off the merged pull request; `contents:
+    # write` is for the tag, the release and its asset.
     permissions:
       contents: write
+      pull-requests: read
     steps:
       # The bump comes from the label on the pull request this commit arrived
       # in, which the `release label` check guarantees is present and unique. A
