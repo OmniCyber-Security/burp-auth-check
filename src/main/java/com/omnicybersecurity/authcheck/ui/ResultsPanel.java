@@ -136,9 +136,9 @@ public final class ResultsPanel extends JPanel {
     // -- construction --------------------------------------------------------
 
     private void buildTable() {
-        // Fill the viewport width and give every spare pixel to the last column,
-        // which is Notes -- the one column whose content is free text.
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+        // Fill the viewport width. Every column but URL and Notes is capped at
+        // its content width, so the spare pixels land on those two.
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         table.setRowSelectionAllowed(true);
         table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         table.setRowSorter(sorter);
@@ -170,33 +170,40 @@ public final class ResultsPanel extends JPanel {
     }
 
     /**
-     * Sizes the columns so the table fills its width with Notes taking the slack.
+     * Sizes the columns so the table fills its width with URL and Notes taking
+     * the slack -- they hold the content you cannot judge at a glance, while
+     * everything else has a known, short shape.
      *
-     * <p>Minimum widths matter here: with auto-resize on there is no horizontal
-     * scrollbar, so a narrow window squeezes columns rather than clipping them,
-     * and without a floor the verdict columns would compress to nothing once
-     * several identities are configured.
+     * <p>The narrow columns get a maximum width as well as a minimum: with
+     * auto-resize on, spare width is shared out among the columns that can
+     * still grow, so capping them is what keeps #, Datetime, Method, Status
+     * and the verdicts from drifting wider than their contents.
      */
     private void applyColumnWidths() {
         int columnCount = table.getColumnCount();
         int notesColumn = columnCount - 1;
 
-        int[] preferred = { 55, 70, 70, 70, 420, 60, 70 };
-        int[] minimum = { 40, 60, 55, 55, 160, 50, 55 };
+        // #, Datetime, Source, Method, URL, Status, Length
+        int[] preferred = { 50, 140, 90, 70, 420, 60, 70 };
+        int[] minimum = { 40, 130, 70, 55, 200, 50, 60 };
+        int[] maximum = { 60, 150, 110, 80, Integer.MAX_VALUE, 70, 90 };
 
         for (int index = 0; index < columnCount; index++) {
             TableColumn column = table.getColumnModel().getColumn(index);
             if (index == notesColumn) {
-                // Whatever is left over lands here; the preferred width only
-                // matters when the window is wide enough to satisfy everything.
-                column.setPreferredWidth(260);
-                column.setMinWidth(120);
+                // Uncapped, so it shares the leftover width with URL.
+                column.setPreferredWidth(300);
+                column.setMinWidth(150);
+                column.setMaxWidth(Integer.MAX_VALUE);
             } else if (index < preferred.length) {
+                column.setMaxWidth(maximum[index]);
                 column.setPreferredWidth(preferred[index]);
                 column.setMinWidth(minimum[index]);
             } else {
-                // A verdict column for one identity.
-                column.setPreferredWidth(130);
+                // A verdict column for one identity: a fixed-vocabulary label,
+                // so it never needs to be wider than the longest verdict.
+                column.setMaxWidth(150);
+                column.setPreferredWidth(120);
                 column.setMinWidth(90);
             }
         }
@@ -551,7 +558,7 @@ public final class ResultsPanel extends JPanel {
     private static void writeCsv(Path target, List<AuthTestRecord> all,
             List<ResultsTableModel.VariantColumn> columns) throws IOException {
         try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(target, StandardCharsets.UTF_8))) {
-            StringBuilder header = new StringBuilder("#,Time,Source,Method,URL,Baseline status,Baseline length");
+            StringBuilder header = new StringBuilder("#,Datetime,Source,Method,URL,Baseline status,Baseline length");
             for (ResultsTableModel.VariantColumn column : columns) {
                 header.append(',').append(Text.csvCell(column.label()))
                         .append(',').append(Text.csvCell(column.label() + " detail"));
@@ -562,7 +569,7 @@ public final class ResultsPanel extends JPanel {
             for (AuthTestRecord record : all) {
                 StringBuilder line = new StringBuilder();
                 line.append(record.index()).append(',')
-                        .append(Text.csvCell(record.time())).append(',')
+                        .append(Text.csvCell(record.dateTime())).append(',')
                         .append(Text.csvCell(record.source())).append(',')
                         .append(Text.csvCell(record.method())).append(',')
                         .append(Text.csvCell(record.url())).append(',')
