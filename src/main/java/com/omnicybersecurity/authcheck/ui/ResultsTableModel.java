@@ -17,7 +17,7 @@ import java.util.List;
  */
 public final class ResultsTableModel extends AbstractTableModel {
 
-    private static final String[] FIXED_COLUMNS = { "#", "Time", "Source", "Method", "URL", "Status", "Length" };
+    private static final String[] FIXED_COLUMNS = { "#", "Datetime", "Source", "Method", "URL", "Status", "Length" };
 
     /** A variant column: which result to read, and what to call it. */
     public record VariantColumn(String key, String label) {
@@ -139,7 +139,7 @@ public final class ResultsTableModel extends AbstractTableModel {
         if (columnIndex < FIXED_COLUMNS.length) {
             return switch (columnIndex) {
                 case 0 -> record.index();
-                case 1 -> record.time();
+                case 1 -> record.dateTime();
                 case 2 -> record.source();
                 case 3 -> record.method();
                 case 4 -> record.url();

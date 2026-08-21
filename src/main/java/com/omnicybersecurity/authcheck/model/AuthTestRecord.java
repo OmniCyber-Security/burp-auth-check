@@ -11,7 +11,7 @@ import java.util.Map;
 /** One tested request: the baseline exchange plus every identity's replay. */
 public final class AuthTestRecord {
 
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final int index;
     private final LocalDateTime timestamp;
@@ -42,8 +42,8 @@ public final class AuthTestRecord {
         return index;
     }
 
-    public String time() {
-        return timestamp.format(TIME);
+    public String dateTime() {
+        return timestamp.format(DATE_TIME);
     }
 
     public LocalDateTime timestamp() {
