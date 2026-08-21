@@ -50,6 +50,110 @@ class AuthScriptEngineTest {
         assertEquals("Bearer abc123", outcome.material().headers().get("Authorization"));
     }
 
+    // -- declared credentials ------------------------------------------------
+
+    @Test
+    void aMissingRequiredCredentialFailsBeforeTheScriptRuns() {
+        identity.authScript("""
+                params { param 'password', type: SECRET, required: true }
+                throw new IllegalStateException('the script must not have run')
+                """);
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertFalse(outcome.success());
+        assertTrue(outcome.error().contains("password"), outcome.error());
+        assertFalse(outcome.error().contains("must not have run"),
+                () -> "the script ran despite a missing credential: " + outcome.error());
+    }
+
+    @Test
+    void anOptionalCredentialLeftBlankDoesNotBlockTheRun() {
+        identity.authScript("""
+                params { param 'totpSecret', type: SECRET }
+                return [headers: ['X-Auth': 'ok']]
+                """);
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertTrue(outcome.success(), () -> "expected success but got: " + outcome.error());
+    }
+
+    @Test
+    void aDeclaredDefaultFillsInForABlankField() {
+        identity.authScript("""
+                params { param 'scope', default: 'openid profile' }
+                return [headers: ['X-Scope': creds.scope]]
+                """);
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertTrue(outcome.success(), () -> "expected success but got: " + outcome.error());
+        assertEquals("openid profile", outcome.material().headers().get("X-Scope"));
+    }
+
+    @Test
+    void aValueTheTesterEnteredBeatsTheDefault() {
+        identity.credentials().put("scope", "api://thing/.default");
+        identity.authScript("""
+                params { param 'scope', default: 'openid profile' }
+                return [headers: ['X-Scope': creds.scope]]
+                """);
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertEquals("api://thing/.default", outcome.material().headers().get("X-Scope"));
+    }
+
+    @Test
+    void aValueThatDoesNotFitItsDeclaredTypeIsRefused() {
+        identity.credentials().put("base", "target.example.com");
+        identity.authScript("""
+                params { param 'base', type: URL, required: true }
+                return [headers: ['X-Base': creds.base]]
+                """);
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertFalse(outcome.success());
+        assertTrue(outcome.error().contains("absolute URL"), outcome.error());
+    }
+
+    @Test
+    void aBadDeclarationRefusesTheRunRatherThanBeingIgnored() {
+        identity.authScript("""
+                params { param 'token', type: PASSPHRASE }
+                return [headers: ['X-Auth': 'ok']]
+                """);
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertFalse(outcome.success());
+        assertTrue(outcome.error().contains("unknown type"), outcome.error());
+    }
+
+    @Test
+    void aScriptWithNoParamsBlockIsUnaffected() {
+        // Every identity that existed before declarations has to keep working.
+        identity.authScript("return [headers: ['Authorization': \"Bearer ${creds.token}\"]]");
+
+        AuthOutcome outcome = engine.authenticate(identity, vars);
+
+        assertTrue(outcome.success(), () -> "expected success but got: " + outcome.error());
+        assertEquals("Bearer abc123", outcome.material().headers().get("Authorization"));
+    }
+
+    @Test
+    void checkSyntaxReportsABadParamsBlock() {
+        String error = engine.validate("""
+                params { param 'scope', required: true, default: 'openid' }
+                return 'x'
+                """);
+
+        assertNotNull(error);
+        assertTrue(error.contains("required and also has a default"), error);
+    }
+
     @Test
     void bareStringGoesIntoTheIdentitysTokenHeader() {
         identity.tokenHeaderName("X-Auth");

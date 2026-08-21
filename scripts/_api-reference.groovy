@@ -17,6 +17,48 @@ import com.omnicybersecurity.authcheck.auth.ScriptHttp
 import com.omnicybersecurity.authcheck.auth.ScriptLog
 
 // ---------------------------------------------------------------------------
+// Declaring the credentials this script needs.
+//
+// Optional, and read from the source without running the script -- so every
+// value below has to be a literal. What it buys you is the Credentials tab
+// rendering these exact fields, and the run being refused with a precise
+// message when one is missing, instead of the script failing somewhere deeper.
+// ---------------------------------------------------------------------------
+
+params {
+    // A param is OPTIONAL unless it says required: true.
+    param 'base',     type: URL,    required: true, label: 'Base URL',
+          help: 'One line shown under the field'
+    param 'username', type: STRING, required: true
+    param 'password', type: SECRET, required: true          // masked in the UI
+
+    // Optional, with nothing to fall back on: creds.totpSecret is '' when unset,
+    // which is Groovy-falsy, so `if (creds.totpSecret)` reads naturally.
+    param 'totpSecret', type: SECRET
+
+    // Optional, with a default the engine fills in when the field is left empty.
+    // The script can then just read creds.scope. A default makes a param
+    // optional by definition, so it cannot be combined with required: true.
+    param 'scope', type: STRING, default: 'openid profile offline_access'
+
+    // The remaining types.
+    param 'retries',   type: INT,  default: '3'
+    param 'useDevice', type: BOOL                            // 'true' / 'false'
+    param 'env',       type: CHOICE, choices: ['staging', 'production']
+    param 'clientCert', type: TEXT, label: 'Client certificate (PEM)'
+
+    // Help longer than a line joins with a TRAILING +. A leading + on the next
+    // line is a new statement in Groovy, and is rejected rather than silently
+    // keeping only the first half.
+    param 'tenantId', type: STRING, default: 'organizations',
+          help: 'Tenant GUID or domain. Set it for a single-tenant app, ' +
+              'which rejects the shared endpoint'
+}
+
+// A credential the block does not declare is not lost: it stays in the
+// name/value table under the form, and creds.<name> still reads it.
+
+// ---------------------------------------------------------------------------
 // Bindings. These exist in every script without declaring anything.
 // ---------------------------------------------------------------------------
 

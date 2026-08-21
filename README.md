@@ -113,11 +113,13 @@ Two notes on how it is set up:
 
 1. **Identities** tab → **Add**. Name it after the user ("User 1 — owner",
    "User 2 — other tenant", "Admin").
-2. Fill in the **credential variables**. These are plain name/value pairs your
-   script reads as `creds.<name>`. Values whose name looks secret are masked in the
-   UI until you tick *Show values*.
-3. On the **Auth script** tab, either insert a template and adapt it, or skip
+2. On the **Auth script** tab, either insert a template and adapt it, or skip
    scripting entirely and just set a fixed header on the **Request rewriting** tab.
+3. Fill in the **Credentials** tab. A script that declares its credentials with a
+   [`params` block](#declaring-the-credentials-a-script-needs) gives you a form with
+   its own labelled fields, masked secrets and required-field checks; every template
+   does. A script that declares nothing gives you a free-form name/value table, whose
+   entries the script reads as `creds.<name>`.
 4. Press **Test authentication now**. You get the resulting auth material and the
    script's log, so you can confirm the login works *before* testing anything.
 5. Repeat for each user.
@@ -137,11 +139,55 @@ slow.
 Groovy. The script runs whenever a session is needed and whenever one dies. The last
 expression — or an explicit `return` — is the auth material applied to every replay.
 
+### Declaring the credentials a script needs
+
+A `params` block at the top of a script says which credential variables it reads.
+The **Credentials** tab then renders exactly those fields, and the run is refused
+with a precise message when a required one is empty — instead of the tester
+guessing names out of a comment and finding out when the script throws.
+
+```groovy
+params {
+    param 'base',     type: URL,    required: true, label: 'Base URL'
+    param 'username', type: STRING, required: true
+    param 'password', type: SECRET, required: true
+    param 'totpSecret', type: SECRET,
+          help: 'Base32 secret from the enrolment QR code. Set it if the account has MFA'
+    param 'scope',    type: STRING, default: 'openid profile offline_access'
+}
+```
+
+| Option | Meaning |
+|---|---|
+| `type:` | `STRING`, `SECRET` (masked), `INT`, `BOOL`, `URL`, `CHOICE` (with `choices: [...]`), `TEXT` (multi-line). Defaults to `STRING` |
+| `required:` | `true` blocks the run while the field is empty, naming it. **Params are optional unless they say otherwise** |
+| `default:` | Filled in when the field is left empty, so the script just reads `creds.scope`. A default makes a param optional, so it cannot be combined with `required: true` |
+| `label:` | What the field is called in the form; the name when absent |
+| `help:` | One line under the field explaining when to set it |
+
+`SECRET` matters beyond the widget: without a declaration, masking is guessed from
+the name, so a key called `enrolment_code` is shown in the clear. Declaring it says
+so outright.
+
+Three things worth knowing:
+
+- **Declaring is optional.** A script with no `params` block gets the free-form
+  table it always had. Nothing written before this existed needs changing.
+- **Nothing is ever lost.** A credential the script does not declare stays in the
+  table under the form — including one that *was* declared until you edited the
+  script. Editing a script never destroys a value you typed.
+- **The block is read without running the script**, straight from the source, which
+  is why every value in it has to be a literal. A name built at runtime is rejected
+  rather than guessed at.
+
+The same checks run wherever authentication is triggered from, so a run started by a
+session-handling rule fails with the same message as one started from the UI.
+
 ### Bindings
 
 | Binding | What it is |
 |---|---|
-| `creds` | This identity's credential variables, e.g. `creds.username` |
+| `creds` | This identity's credential variables, e.g. `creds.username` — declare them with `params` (below) |
 | `http` | HTTP helper (below). Requests go through Burp, so they appear in the Logger |
 | `vars` | Mutable map that **survives between refreshes** — stash refresh tokens here |
 | `log` | `log.info` / `log.warn` / `log.error`, shown under the script and in Burp's output |

@@ -50,8 +50,10 @@ public final class HelpPanel extends JPanel {
 
                 <h3>Getting started</h3>
                 <ol>
-                  <li><b>Identities</b> tab: add one identity per user. Put their login details in the credential
-                      table -- these are saved in the Burp project.</li>
+                  <li><b>Identities</b> tab: add one identity per user. Put their login details in the
+                      <b>Credentials</b> tab -- these are saved in the Burp project. A script that declares what it
+                      needs turns that tab into a form with its own labelled fields; one that does not gives you a
+                      free-form name/value table.</li>
                   <li>Write an auth script for each identity, or just set a static <code>Authorization</code> header
                       under <b>Request rewriting</b>. Press <b>Test authentication now</b> to prove it works.</li>
                   <li>Browse the application as your <i>most privileged</i> user, or the user who owns the data. That
@@ -67,7 +69,8 @@ public final class HelpPanel extends JPanel {
                 <h3>What you get handed</h3>
                 <table>
                   <tr><td><code>creds</code></td>
-                      <td>Map of this identity's credential variables, e.g. <code>creds.username</code>.</td></tr>
+                      <td>Map of this identity's credential variables, e.g. <code>creds.username</code>. Declare
+                          them with <code>params</code> (below) to get a proper form for them.</td></tr>
                   <tr><td><code>http</code></td>
                       <td>HTTP helper -- see below. Requests go through Burp, so they appear in the Logger.</td></tr>
                   <tr><td><code>vars</code></td>
@@ -79,6 +82,37 @@ public final class HelpPanel extends JPanel {
                       <td>The full Montoya <code>MontoyaApi</code>, for anything the helper does not cover.</td></tr>
                   <tr><td><code>identity</code></td><td>This identity's name, as a string.</td></tr>
                 </table>
+
+                <h3>Declaring the credentials a script needs</h3>
+                <p>A <code>params</code> block at the top of a script says which credential variables it reads. The
+                <b>Credentials</b> tab then renders exactly those fields, with labels, help, masked secrets and a
+                check before the run -- instead of leaving you to guess the names out of a comment.</p>
+                <pre>params {
+                    param 'base',     type: URL,    required: true, label: 'Base URL'
+                    param 'username', type: STRING, required: true
+                    param 'password', type: SECRET, required: true
+                    param 'scope',    type: STRING, default: 'openid profile',
+                          help: 'Scopes requested at the token endpoint'
+                }</pre>
+                <table>
+                  <tr><td><code>type:</code></td>
+                      <td><code>STRING</code>, <code>SECRET</code> (masked), <code>INT</code>, <code>BOOL</code>,
+                          <code>URL</code>, <code>CHOICE</code> (with <code>choices: [...]</code>) or
+                          <code>TEXT</code> (multi-line). Defaults to <code>STRING</code>.</td></tr>
+                  <tr><td><code>required:</code></td>
+                      <td><code>true</code> blocks the run while the field is empty, naming it. Params are
+                          <b>optional</b> unless they say otherwise.</td></tr>
+                  <tr><td><code>default:</code></td>
+                      <td>Used when the field is left empty, so the script can just read
+                          <code>creds.scope</code>. A default makes a param optional, so it cannot be combined
+                          with <code>required: true</code>.</td></tr>
+                  <tr><td><code>label:</code>, <code>help:</code></td>
+                      <td>What the field is called, and one line under it explaining when to set it.</td></tr>
+                </table>
+                <p>Declaring is optional and nothing is ever lost by it: a credential the script does not declare
+                stays in the table underneath the form, including one that <i>was</i> declared until you edited the
+                script. The block is read from the source without running the script, so every value in it has to be
+                a literal.</p>
 
                 <h3>The <code>http</code> helper</h3>
                 <table>

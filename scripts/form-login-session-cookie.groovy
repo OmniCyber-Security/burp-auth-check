@@ -4,11 +4,6 @@
  * Classic HTML form login: fetch the login page for its CSRF token, post the
  * credentials, keep the session cookie.
  *
- * Credential variables expected on the identity:
- *   base      - e.g. https://target.example.com
- *   username
- *   password
- *
  * Because the session lives in a cookie, leave "Cookie" in the identity's
  * "Strip these headers first" list so the baseline user's session is removed
  * before this one is applied.
@@ -18,6 +13,13 @@
  *   Session-check URL       : https://target.example.com/account
  *   Healthy-session pattern : (?i)signed in as
  */
+
+params {
+    param 'base',     type: URL,    required: true, label: 'Base URL',
+          help: 'e.g. https://target.example.com'
+    param 'username', type: STRING, required: true
+    param 'password', type: SECRET, required: true
+}
 
 // 1. The login page carries the CSRF token and usually a pre-session cookie.
 def loginPage = http.get("${creds.base}/login")

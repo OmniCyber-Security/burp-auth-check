@@ -20,6 +20,38 @@ jar; they are not duplicated anywhere in the Java.
 | [`entra-id-oidc-totp.groovy`](entra-id-oidc-totp.groovy) | Entra ID authorization-code sign-in, TOTP second factor |
 | [`_api-reference.groovy`](_api-reference.groovy) | Every binding and helper, with types. Not a template |
 
+## Declaring credentials
+
+Every example starts with a `params` block naming the credential variables it reads.
+That block is what the extension's **Credentials** tab renders as a form, so a tester
+gets labelled fields, masked secrets, defaults and a required-field check instead of
+a comment to guess from:
+
+```groovy
+params {
+    param 'base',       type: URL,    required: true, label: 'Base URL'
+    param 'username',   type: STRING, required: true
+    param 'password',   type: SECRET, required: true
+    param 'totpSecret', type: SECRET, help: 'Base32 secret from the enrolment QR code'
+    param 'scope',      type: STRING, default: 'openid profile offline_access'
+}
+```
+
+Types are `STRING`, `SECRET`, `INT`, `BOOL`, `URL`, `CHOICE` (with `choices: [...]`)
+and `TEXT`. A param is optional unless it says `required: true`; a `default:` is
+filled in when the field is left empty, so the script can read `creds.scope` without
+a `?:` fallback, and cannot be combined with `required: true`.
+
+The block is parsed out of the source without running the script, so everything in it
+must be a literal. Help text longer than a line joins with a **trailing** `+` — a
+leading `+` on the next line starts a new statement in Groovy, and is reported rather
+than silently keeping half the sentence.
+
+A test asserts that every example here declares its params, that every declared param
+is actually read, and that anything secret-looking is typed `SECRET`. Guarding a
+missing credential by hand is no longer needed — `required: true` refuses the run
+before the first request, and names the field.
+
 ## Adding one
 
 Drop a `.groovy` file in this directory and rebuild. The build indexes it and it
@@ -46,7 +78,8 @@ rather than turning up in someone's template menu.
 
 Scripts are compiled against
 [`AuthScriptBase`](../src/main/java/com/omnicybersecurity/authcheck/auth/AuthScriptBase.java),
-which declares `creds`, `http`, `vars`, `log`, `api` and `identity` with real types.
+which declares `creds`, `http`, `vars`, `log`, `api` and `identity` with real types,
+plus `params` and the type constants used inside it.
 That means an editor can complete and type-check them:
 
 1. Open this repository, or any project, in an IDE with Groovy support.

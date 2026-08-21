@@ -3,15 +3,17 @@
  *
  * JSON login that returns a bearer token.
  *
- * Credential variables expected on the identity:
- *   base      - e.g. https://target.example.com
- *   username
- *   password
- *
  * Suggested "Session lifetime" settings for a short-lived token:
  *   Session lifetime        : whatever the token's expires_in says, e.g. 300
  *   Invalid-session pattern : (?i)"(error|message)"\s*:\s*"(invalid|expired)_?token"
  */
+
+params {
+    param 'base',     type: URL,    required: true, label: 'Base URL',
+          help: 'e.g. https://target.example.com'
+    param 'username', type: STRING, required: true
+    param 'password', type: SECRET, required: true
+}
 
 def resp = http.postJson("${creds.base}/api/v1/login", [
         username: creds.username,

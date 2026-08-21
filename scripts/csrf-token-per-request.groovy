@@ -8,9 +8,14 @@
  *     than a header
  *   - returning several kinds of material at once
  *
- * Credential variables expected on the identity:
- *   base, username, password
  */
+
+params {
+    param 'base',     type: URL,    required: true, label: 'Base URL',
+          help: 'e.g. https://target.example.com'
+    param 'username', type: STRING, required: true
+    param 'password', type: SECRET, required: true
+}
 
 def loginPage = http.get("${creds.base}/login")
 def loginCsrf = http.extractFrom(loginPage, /name="_csrf"\s+value="([^"]+)"/)

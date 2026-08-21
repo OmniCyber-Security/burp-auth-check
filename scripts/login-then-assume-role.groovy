@@ -6,12 +6,6 @@
  * account can act as several personas, which is exactly the shape an
  * authorisation test wants -- one identity per role, same underlying account.
  *
- * Credential variables expected on the identity:
- *   base
- *   username
- *   password
- *   roleId - the role to assume
- *
  * The two things worth copying here:
  *
  *   1. The role call's response is checked. A 403 from it means the session is
@@ -23,6 +17,15 @@
  *      and correct); others elevate in place. Merging handles both without
  *      caring which this one does.
  */
+
+params {
+    param 'base',     type: URL,    required: true, label: 'Base URL',
+          help: 'e.g. https://target.example.com'
+    param 'username', type: STRING, required: true
+    param 'password', type: SECRET, required: true
+    param 'roleId',   type: STRING, required: true, label: 'Role to assume',
+          help: 'One identity per role, same underlying account'
+}
 
 def resp = http.postJson("${creds.base}/login", [
         username: creds.username,
