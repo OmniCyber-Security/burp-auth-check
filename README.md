@@ -29,6 +29,7 @@ project**, so reopening it restores the evidence as well as the setup.
 - [What is stored in the project](#what-is-stored-in-the-project)
 - [Settings reference](#settings-reference)
 - [Project layout](#project-layout)
+- [BApp Store submission](#bapp-store-submission)
 - [Testing](#testing)
 
 ---
@@ -61,8 +62,8 @@ same expired session cause **one** login, not ten.
 ## Installing
 
 Grab `burp-auth-check-<version>.jar` from
-[**Releases**](https://github.com/OmniCyber-Security/burp-auth-check/releases) — the
-`latest` prerelease always tracks the current `main`.
+[**Releases**](https://github.com/OmniCyber-Security/burp-auth-check/releases). Every
+merge that changes the jar publishes one, so the newest release is the current `main`.
 
 Then: Burp → **Extensions** → **Installed** → **Add** → Extension type **Java** →
 select the JAR. A new **Auth Check** tab appears.
@@ -73,7 +74,7 @@ Requires a JDK 17 or newer. The Gradle wrapper is included; nothing else to inst
 
 ```bash
 ./gradlew shadowJar   # -> build/libs/burp-auth-check-<version>.jar (~8 MB, bundles Groovy)
-./gradlew test        # 60 tests
+./gradlew test        # 145 tests
 ./gradlew build       # both
 ```
 
@@ -82,30 +83,54 @@ it at runtime.
 
 ## CI and releases
 
-`.github/workflows/build.yml` builds and tests on every push and pull request, and
-publishes the jar:
+`.github/workflows/build.yml` builds and tests every push and pull request, and
+publishes a release when `main` moves. `.github/workflows/release-label.yml` is the
+status check that makes the release decision possible.
 
-| Trigger | Result |
+### The version comes from a label
+
+Every pull request carries exactly one release label. The **release label** check
+fails until it does, so the question is answered before the merge rather than after:
+
+| Label | Effect on the newest `vX.Y.Z` tag |
 |---|---|
-| Push to any branch, or a PR | Build + test; jar kept as a build artifact for 90 days |
-| Push to `main` | The above, plus the rolling **`latest`** prerelease is replaced with the new jar |
-| Push a **`v*`** tag | The above, plus a permanent versioned release with generated notes |
+| `release:major` | `X+1.0.0` — incompatible change to how the extension is used or configured |
+| `release:minor` | `X.Y+1.0` — new capability, backwards compatible |
+| `release:patch` | `X.Y.Z+1` — fix or internal change, no new capability |
+| `release:none` | No release. Docs, CI, and anything that does not change the jar |
 
-The rolling release is deleted and recreated each time, so `main` always has a
-one-click jar without accumulating a release per commit. Cut a fixed build with:
+On a push to `main` the release job reads that label off the merged pull request,
+works out the next version from the newest `v*` tag, builds the jar **stamped with
+that version**, then creates the tag and the release and attaches the jar. A commit
+pushed straight to `main` has no pull request and so releases nothing; run the
+workflow manually with a `bump` input if it should have.
 
-```bash
-git tag v1.1.0 && git push origin v1.1.0
-```
+The tags are the source of truth for the version. `version` in `gradle.properties`
+is only the fallback for local builds — CI overrides it with `-Pversion=<next>`, which
+is what keeps the jar's `Implementation-Version` honest.
 
-Two notes on how it is set up:
+### How it is set up
 
-- The Gradle wrapper jar is executable code committed to the repo, so the pipeline
-  validates it against Gradle's published checksums before running it.
-- The organisation defaults workflow tokens to read-only. The workflow requests
-  `contents: write` explicitly, which is the minimum needed to publish a release, and
-  nothing else. If that org policy is ever tightened to hard-deny, the release steps
-  will 403 and a PAT secret would be needed instead.
+- **Every action is pinned to a commit SHA**, with the tag it corresponded to in a
+  trailing comment. A moved tag cannot change what runs.
+- **The logic is `actions/github-script`**, not third-party actions — including the
+  Gradle wrapper check, which fetches the checksum Gradle publishes for the exact
+  distribution `gradle-wrapper.properties` names and compares it against the
+  committed jar. The wrapper is executable code in the repository that runs before
+  anything else, so it is checked before anything else.
+- **Pull requests cannot reach a write token.** The workflow is `contents: read` by
+  default; only the release job widens that, and it is gated on `push` to `main` or a
+  manual run. Neither is reachable from a `pull_request` event, and nothing uses
+  `pull_request_target`. The label check runs with `permissions: {}` and never checks
+  out the branch — it reads labels from the event payload, which only maintainers can
+  set.
+- **No untrusted value is interpolated into a shell.** Values computed by the
+  workflow reach `run:` steps through `env:`, and everything else stays inside
+  `github-script`, where the event payload is data rather than script.
+- The organisation defaults workflow tokens to read-only. The release job requests
+  `contents: write` explicitly, which is the minimum needed to create a tag and a
+  release. If that org policy is ever tightened to hard-deny, the release steps will
+  403 and a PAT secret would be needed instead.
 
 ---
 
@@ -473,9 +498,59 @@ src/main/java/com/omnicybersecurity/authcheck/
 The **Help** tab inside the extension carries the same script reference, so you do
 not need this file open while testing.
 
+---
+
+## BApp Store submission
+
+Submission text, and where the extension stands against PortSwigger's
+[acceptance criteria](https://portswigger.net/burp/documentation/desktop/extensions/creating/bapp-store-acceptance-criteria).
+
+- **Name:** Auth Check — authorisation testing
+- **Summary:** Replays each request as every configured identity and unauthenticated,
+  keeping short-lived sessions alive with scripted logins.
+
+### How it differs from the existing authorisation BApps
+
+Autorize and Auth Analyzer both replay a request as a second user. This extension
+differs in what it does about the session underneath that replay, which is the part
+that decides whether a run is trustworthy:
+
+- **Any number of identities per run**, plus a mandatory unauthenticated variant, in
+  one record — rather than one "low-privilege user" at a time.
+- **Sessions are scripted, not captured.** An identity owns a Groovy login script,
+  so credentials that expire in minutes (OIDC, TOTP, refresh tokens, assumed roles)
+  are re-obtained rather than pasted in again.
+- **Expiry is distinguished from enforcement.** A `401` is both the correct answer to
+  an authorisation check and the symptom of a dead session; the two are separated by
+  an explicit liveness probe rather than guessed at. See
+  [Why the session handling matters](#why-the-session-handling-matters).
+- **The evidence is in the project.** Baseline, every replay, and the login traffic
+  each script generated reopen with the project file.
+- **The login scripts are reusable outside this extension** as Burp
+  session-handling actions, so Scanner and Intruder get the same live sessions.
+
+### Criteria
+
+| Criterion | How it is met |
+|---|---|
+| Unique function | See above. |
+| Clear, descriptive name | "Auth Check — authorisation testing", with the summary above. |
+| Operates securely | Response content is treated as data throughout: it is never rendered as HTML (the one tooltip built from it is escaped), never deserialised, and never used to build a request except through the tester's own script. The only code the extension executes is Groovy the tester wrote or imported, and importing a shared identity file warns that it carries executable scripts before adding it. Credentials live unencrypted in the Burp project — stated in the UI, in the export file, and in [What is stored in the project](#what-is-stored-in-the-project). |
+| Includes all dependencies | Groovy is shaded into the jar. Montoya is `compileOnly`; Burp provides it. |
+| Uses threads | No slow work on the event thread or Burp's: replays, logins, script compilation, persistence and file export all run on the extension's own pools. Every task body is wrapped in try/catch that writes to the extension error stream, because Burp does not report what escapes a background thread. |
+| Unloads cleanly | `registerUnloadingHandler` saves configuration, stops all four executors, deregisters the per-identity session-handling actions, closes the Groovy classloader, and flushes pending project writes before returning. All threads are daemons as a backstop. |
+| Uses Burp networking | Every request — replays, liveness probes and everything an auth script sends through the `http` binding — goes through `api.http().sendRequest()`, so upstream proxies and session-handling rules are obeyed and the traffic appears in Logger. |
+| Supports offline working | No online services are contacted. The script templates are bundled in the jar. |
+| Copes with large projects | Nothing passed to `HttpHandler` is retained: messages are copied with `copyToTempFile()` before queueing, and every stored exchange stays on disk rather than in heap. The site map and Proxy history are never enumerated. Both the in-memory and the persisted result counts are capped. |
+| Parents GUI elements | Every dialog and file chooser is parented via `swingUtils().windowForComponent()`, falling back to `swingUtils().suiteFrame()`. |
+| Uses the Montoya API artifact | `net.portswigger.burp.extensions:montoya-api`, via Gradle. |
+| Burp AI as default provider | No AI functionality. |
+
+---
+
 ## Testing
 
-60 JUnit tests cover the parts that decide whether you have a finding, and the parts
+145 JUnit tests cover the parts that decide whether you have a finding, and the parts
 that decide whether you still have it tomorrow:
 
 - **Verdicts** — bypass/enforced/review rules, denial detection, unsuccessful baselines.
@@ -493,10 +568,6 @@ install their own factory (`support/FakePersistence.java`) and drive the real
 `ConfigStore` and `ResultsRepository` code. The API does not state whether a child
 object fetched from the project is a live view or a copy, so every persistence test
 runs against **both** semantics and the extension probes which one it has at startup.
-
-```bash
-./gradlew test
-```
 
 ```bash
 ./gradlew test

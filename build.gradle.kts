@@ -4,7 +4,8 @@ plugins {
 }
 
 group = "com.omnicybersecurity"
-version = "1.2.0"
+// The version lives in gradle.properties so CI can override it with
+// `-Pversion=<next>`; releases derive that number from the git tags.
 
 repositories {
     mavenCentral()

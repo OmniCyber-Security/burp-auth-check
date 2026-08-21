@@ -1,0 +1,70 @@
+name: release label
+
+# Every pull request must say what it does to the version number, because the
+# release workflow reads that label off the merged PR and has no other way to
+# decide. A missing label fails this check rather than silently releasing the
+# wrong number -- or nothing at all.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+
+# Read-only, and nothing here checks out or runs any code from the pull request,
+# so a PR from a fork cannot reach anything. The labels come from the event
+# payload -- they are set by maintainers on the repository, not by the branch.
+permissions: {}
+
+concurrency:
+  group: release-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  release-label:
+    name: Release label present
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for exactly one release label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const BUMPS = {
+              'release:major': 'Bumps X.0.0 -- incompatible change to how the extension is used or configured.',
+              'release:minor': 'Bumps 0.X.0 -- new capability, backwards compatible.',
+              'release:patch': 'Bumps 0.0.X -- fix or internal change, no new capability.',
+              'release:none':  'No release. Use for docs, CI and anything that does not change the jar.',
+            };
+
+            const applied = context.payload.pull_request.labels
+              .map(label => label.name)
+              .filter(name => name in BUMPS);
+
+            const table = Object.entries(BUMPS)
+              .map(([name, meaning]) => `| \`${name}\` | ${meaning} |`)
+              .join('\n');
+            const help = [
+              '| Label | Meaning |',
+              '|---|---|',
+              table,
+            ].join('\n');
+
+            if (applied.length === 1) {
+              const [label] = applied;
+              await core.summary
+                .addHeading('Release label', 3)
+                .addRaw(`This pull request is labelled \`${label}\`. ${BUMPS[label]}`)
+                .write();
+              core.info(`Release label: ${label}`);
+              return;
+            }
+
+            const problem = applied.length === 0
+              ? 'This pull request has no release label, so the release workflow cannot tell what to do with the version number.'
+              : `This pull request has ${applied.length} release labels (${applied.join(', ')}). Exactly one is needed.`;
+
+            await core.summary
+              .addHeading('Release label missing', 3)
+              .addRaw(problem)
+              .addRaw('\n\nAdd one of these labels to the pull request:\n\n')
+              .addRaw(help)
+              .write();
+
+            core.setFailed(`${problem} Add exactly one of: ${Object.keys(BUMPS).join(', ')}.`);

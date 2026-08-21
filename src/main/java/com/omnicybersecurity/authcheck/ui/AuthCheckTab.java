@@ -30,7 +30,7 @@ public final class AuthCheckTab extends JPanel {
 
         tabs.addTab("Results", resultsPanel);
         tabs.addTab("Identities", identitiesPanel);
-        tabs.addTab("Settings", new SettingsPanel(configuration));
+        tabs.addTab("Settings", new SettingsPanel(api, configuration));
         tabs.addTab("Help", new HelpPanel(UiUtils.isDark(api)));
 
         tabs.addChangeListener(event -> {

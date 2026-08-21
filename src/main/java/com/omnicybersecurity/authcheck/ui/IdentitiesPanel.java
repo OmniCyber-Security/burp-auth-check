@@ -209,10 +209,8 @@ public final class IdentitiesPanel extends JPanel {
             if (current == null) {
                 return;
             }
-            int choice = JOptionPane.showConfirmDialog(this,
-                    "Remove '" + current.name() + "' and its stored credentials from this project?",
-                    "Auth Check", JOptionPane.OK_CANCEL_OPTION);
-            if (choice == JOptionPane.OK_OPTION) {
+            if (UiUtils.confirm(api, this,
+                    "Remove '" + current.name() + "' and its stored credentials from this project?")) {
                 sessionManager.forget(current.id());
                 repository.forgetIdentity(current.id());
                 configuration.remove(current);
@@ -285,13 +283,24 @@ public final class IdentitiesPanel extends JPanel {
 
         JButton check = new JButton("Check syntax");
         check.addActionListener(e -> {
-            String error = scriptEngine.validate(scriptArea.getText());
-            if (error == null) {
-                JOptionPane.showMessageDialog(this, "The script compiles.",
-                        "Auth Check", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                showLongMessage("Script problem", error);
-            }
+            // Compiling invokes the whole Groovy compiler, which on a cold cache
+            // takes long enough to visibly freeze Burp if done on the event thread.
+            String source = scriptArea.getText();
+            check.setEnabled(false);
+            UiUtils.inBackground(
+                    () -> scriptEngine.validate(source),
+                    error -> {
+                        check.setEnabled(true);
+                        if (error == null) {
+                            UiUtils.info(api, this, "The script compiles.");
+                        } else {
+                            showLongMessage("Script problem", error);
+                        }
+                    },
+                    failure -> {
+                        check.setEnabled(true);
+                        showLongMessage("Script problem", UiUtils.describe(failure));
+                    });
         });
         top.add(check);
 
@@ -685,26 +694,25 @@ public final class IdentitiesPanel extends JPanel {
         if (Text.isBlank(scriptArea.getText())) {
             return true;
         }
-        return JOptionPane.showConfirmDialog(this, "Replace the current script with this template?",
-                "Auth Check", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION;
+        return UiUtils.confirm(api, this, "Replace the current script with this template?");
     }
 
     private void loadScriptFromFile() {
         JFileChooser chooser = new JFileChooser();
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (chooser.showOpenDialog(UiUtils.dialogParent(api, this)) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         if (!confirmOverwriteScript()) {
             return;
         }
-        try {
-            String body = Files.readString(chooser.getSelectedFile().toPath(), StandardCharsets.UTF_8);
-            scriptArea.setText(body);
-            scriptArea.setCaretPosition(0);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Could not read the file:\n" + e.getMessage(),
-                    "Auth Check", JOptionPane.ERROR_MESSAGE);
-        }
+        Path source = chooser.getSelectedFile().toPath();
+        UiUtils.inBackground(
+                () -> Files.readString(source, StandardCharsets.UTF_8),
+                body -> {
+                    scriptArea.setText(body);
+                    scriptArea.setCaretPosition(0);
+                },
+                error -> UiUtils.error(api, this, "Could not read the file:\n" + UiUtils.describe(error)));
     }
 
     private void saveScriptToFile() {
@@ -715,23 +723,21 @@ public final class IdentitiesPanel extends JPanel {
         JFileChooser chooser = new JFileChooser();
         chooser.setSelectedFile(new java.io.File(
                 identity.name().replaceAll("[^A-Za-z0-9._-]", "_") + ".groovy"));
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (chooser.showSaveDialog(UiUtils.dialogParent(api, this)) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         Path target = chooser.getSelectedFile().toPath();
-        try {
-            Files.writeString(target, scriptArea.getText(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Could not write the file:\n" + e.getMessage(),
-                    "Auth Check", JOptionPane.ERROR_MESSAGE);
-        }
+        String body = scriptArea.getText();
+        UiUtils.inBackground(
+                () -> Files.writeString(target, body, StandardCharsets.UTF_8),
+                written -> { },
+                error -> UiUtils.error(api, this, "Could not write the file:\n" + UiUtils.describe(error)));
     }
 
     private void exportIdentities() {
         List<Identity> identities = new ArrayList<>(configuration.identities());
         if (identities.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "There are no identities to export.",
-                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
+            UiUtils.info(api, this, "There are no identities to export.");
             return;
         }
         // Flush any in-progress edit before writing.
@@ -742,51 +748,67 @@ public final class IdentitiesPanel extends JPanel {
 
         JFileChooser chooser = new JFileChooser();
         chooser.setSelectedFile(new java.io.File("auth-check-identities.json"));
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (chooser.showSaveDialog(UiUtils.dialogParent(api, this)) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         Path target = chooser.getSelectedFile().toPath();
-        try {
-            Files.writeString(target, IdentityTransfer.toJson(identities), StandardCharsets.UTF_8);
-            JOptionPane.showMessageDialog(this,
-                    "Exported " + identities.size() + " identit"
-                    + (identities.size() == 1 ? "y" : "ies") + " to\n" + target
-                    + "\n\nThis file contains credentials in clear text. Treat it as sensitive.",
-                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Could not write the file:\n" + e.getMessage(),
-                    "Auth Check", JOptionPane.ERROR_MESSAGE);
-        }
+        // Serialising every identity's script and credentials, then writing them,
+        // is disk work; the event thread should not be waiting on it.
+        UiUtils.inBackground(
+                () -> {
+                    Files.writeString(target, IdentityTransfer.toJson(identities), StandardCharsets.UTF_8);
+                    return identities.size();
+                },
+                count -> UiUtils.info(api, this,
+                        "Exported " + count + " identit" + (count == 1 ? "y" : "ies") + " to\n" + target
+                        + "\n\nThis file contains credentials in clear text. Treat it as sensitive."),
+                error -> UiUtils.error(api, this, "Could not write the file:\n" + UiUtils.describe(error)));
     }
 
     private void importIdentities() {
         JFileChooser chooser = new JFileChooser();
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (chooser.showOpenDialog(UiUtils.dialogParent(api, this)) != JFileChooser.APPROVE_OPTION) {
             return;
         }
-        try {
-            String json = Files.readString(chooser.getSelectedFile().toPath(), StandardCharsets.UTF_8);
-            List<Identity> imported = IdentityTransfer.fromJson(json);
+        Path source = chooser.getSelectedFile().toPath();
+        UiUtils.inBackground(
+                () -> IdentityTransfer.fromJson(Files.readString(source, StandardCharsets.UTF_8)),
+                this::confirmImport,
+                error -> UiUtils.error(api, this, (error instanceof IOException
+                        ? "Could not read the file:\n"
+                        : "That file could not be imported:\n") + UiUtils.describe(error)));
+    }
 
-            int choice = JOptionPane.showConfirmDialog(this,
-                    "Add " + imported.size() + " identit" + (imported.size() == 1 ? "y" : "ies")
-                    + " to this project? Existing identities are kept.",
-                    "Auth Check", JOptionPane.OK_CANCEL_OPTION);
-            if (choice != JOptionPane.OK_OPTION) {
-                return;
-            }
-
-            imported.forEach(configuration.identities()::add);
-            configuration.identitiesChanged();
-            reloadList();
-            identityList.setSelectedValue(imported.get(0), true);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Could not read the file:\n" + e.getMessage(),
-                    "Auth Check", JOptionPane.ERROR_MESSAGE);
-        } catch (RuntimeException e) {
-            JOptionPane.showMessageDialog(this, "That file could not be imported:\n" + e.getMessage(),
-                    "Auth Check", JOptionPane.ERROR_MESSAGE);
+    /**
+     * Confirms an import before it is applied.
+     *
+     * <p>An identity file is not inert data: each identity may carry an auth
+     * script, and that script is Groovy which this extension will execute inside
+     * Burp as soon as the identity is used. The confirmation says so, because a
+     * file shared between testers is exactly how someone ends up running code
+     * they have not read.
+     */
+    private void confirmImport(List<Identity> imported) {
+        long withScripts = imported.stream().filter(Identity::hasScript).count();
+        StringBuilder message = new StringBuilder()
+                .append("Add ").append(imported.size())
+                .append(" identit").append(imported.size() == 1 ? "y" : "ies")
+                .append(" to this project? Existing identities are kept.");
+        if (withScripts > 0) {
+            message.append("\n\n").append(withScripts)
+                    .append(withScripts == 1 ? " of them carries an auth script" : " of them carry auth scripts")
+                    .append(" which this extension runs as Groovy code inside Burp.")
+                    .append("\nOnly import files you trust, and read the script on the Auth script tab")
+                    .append("\nbefore the identity is used.");
         }
+        if (!UiUtils.confirm(api, this, message.toString())) {
+            return;
+        }
+
+        imported.forEach(configuration.identities()::add);
+        configuration.identitiesChanged();
+        reloadList();
+        identityList.setSelectedValue(imported.get(0), true);
     }
 
     private void showLongMessage(String title, String body) {
@@ -794,7 +816,8 @@ public final class IdentitiesPanel extends JPanel {
         area.setText(body);
         area.setEditable(false);
         area.setCaretPosition(0);
-        JOptionPane.showMessageDialog(this, new JScrollPane(area), title, JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(UiUtils.dialogParent(api, this), new JScrollPane(area),
+                title, JOptionPane.ERROR_MESSAGE);
     }
 
     /** Called when the tab becomes visible so session status is not stale. */

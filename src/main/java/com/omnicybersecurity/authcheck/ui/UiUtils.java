@@ -7,19 +7,112 @@ import com.omnicybersecurity.authcheck.model.Verdict;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.SwingWorker;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Window;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 
 /** Shared Swing helpers: verdict colours, monospaced editors, simple forms. */
 public final class UiUtils {
 
     private UiUtils() {
+    }
+
+    /**
+     * The window a dialog raised from {@code component} should belong to.
+     *
+     * <p>Burp resolves this itself, which keeps a dialog on the monitor holding
+     * the window the user clicked in -- including a tab that has been detached
+     * into its own frame. The suite frame is the fallback for the case where the
+     * component is not in a hierarchy yet, so a dialog is never parentless and
+     * never lands on the wrong screen.
+     */
+    public static Window dialogParent(MontoyaApi api, Component component) {
+        try {
+            if (component != null) {
+                Window window = api.userInterface().swingUtils().windowForComponent(component);
+                if (window != null) {
+                    return window;
+                }
+            }
+            return api.userInterface().swingUtils().suiteFrame();
+        } catch (Exception e) {
+            // Never let dialog parenting be the thing that breaks the UI.
+            return null;
+        }
+    }
+
+    /** Shows an informational dialog parented to Burp's window. */
+    public static void info(MontoyaApi api, Component owner, String message) {
+        JOptionPane.showMessageDialog(dialogParent(api, owner), message,
+                "Auth Check", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * The most useful single line about a failure. {@code getMessage()} is null
+     * for plenty of exceptions -- {@code NullPointerException} among them -- and
+     * "Could not write the file: null" tells the tester nothing.
+     */
+    public static String describe(Throwable error) {
+        if (error == null) {
+            return "unknown error";
+        }
+        String message = error.getMessage();
+        return message == null || message.isBlank() ? error.toString() : message;
+    }
+
+    /** Shows an error dialog parented to Burp's window. */
+    public static void error(MontoyaApi api, Component owner, String message) {
+        JOptionPane.showMessageDialog(dialogParent(api, owner), message,
+                "Auth Check", JOptionPane.ERROR_MESSAGE);
+    }
+
+    /** Asks for confirmation, parented to Burp's window. True when confirmed. */
+    public static boolean confirm(MontoyaApi api, Component owner, String message) {
+        return JOptionPane.showConfirmDialog(dialogParent(api, owner), message,
+                "Auth Check", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION;
+    }
+
+    /**
+     * Runs {@code work} off the event thread and hands the result back on it.
+     *
+     * <p>Anything that touches the disk, the network or the Groovy compiler goes
+     * through here: on the event thread it would freeze the whole of Burp, not
+     * just this tab. Failures are delivered to {@code onFailure} rather than
+     * vanishing, because Burp does not report exceptions thrown on threads it
+     * does not own.
+     */
+    public static <T> void inBackground(Callable<T> work, Consumer<T> onSuccess, Consumer<Throwable> onFailure) {
+        new SwingWorker<T, Void>() {
+            @Override
+            protected T doInBackground() throws Exception {
+                return work.call();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    onSuccess.accept(get());
+                } catch (java.util.concurrent.ExecutionException e) {
+                    onFailure.accept(e.getCause() == null ? e : e.getCause());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    onFailure.accept(e);
+                } catch (RuntimeException e) {
+                    onFailure.accept(e);
+                }
+            }
+        }.execute();
     }
 
     public static boolean isDark(MontoyaApi api) {

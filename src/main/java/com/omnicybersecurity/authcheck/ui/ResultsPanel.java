@@ -23,7 +23,6 @@ import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -492,8 +491,7 @@ public final class ResultsPanel extends JPanel {
     private void retestSelected() {
         List<AuthTestRecord> selected = selectedRecords();
         if (selected.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Select one or more rows to retest.",
-                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
+            UiUtils.info(api, this, "Select one or more rows to retest.");
             return;
         }
         engine.retest(selected);
@@ -527,17 +525,31 @@ public final class ResultsPanel extends JPanel {
     private void exportCsv() {
         List<AuthTestRecord> all = records.snapshot();
         if (all.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "There are no results to export yet.",
-                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
+            UiUtils.info(api, this, "There are no results to export yet.");
             return;
         }
         JFileChooser chooser = new JFileChooser();
         chooser.setSelectedFile(new java.io.File("auth-check-results.csv"));
-        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (chooser.showSaveDialog(UiUtils.dialogParent(api, this)) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         Path target = chooser.getSelectedFile().toPath();
         List<ResultsTableModel.VariantColumn> columns = tableModel.variants();
+
+        // A long engagement's results run to thousands of rows, each carrying the
+        // full verdict detail. Building and writing that on the event thread would
+        // freeze Burp for as long as the disk takes.
+        UiUtils.inBackground(
+                () -> {
+                    writeCsv(target, all, columns);
+                    return all.size();
+                },
+                count -> UiUtils.info(api, this, "Exported " + count + " results to\n" + target),
+                error -> UiUtils.error(api, this, "Could not write the CSV:\n" + UiUtils.describe(error)));
+    }
+
+    private static void writeCsv(Path target, List<AuthTestRecord> all,
+            List<ResultsTableModel.VariantColumn> columns) throws IOException {
         try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(target, StandardCharsets.UTF_8))) {
             StringBuilder header = new StringBuilder("#,Time,Source,Method,URL,Baseline status,Baseline length");
             for (ResultsTableModel.VariantColumn column : columns) {
@@ -564,11 +576,6 @@ public final class ResultsPanel extends JPanel {
                 line.append(',').append(Text.csvCell(record.note()));
                 writer.println(line);
             }
-            JOptionPane.showMessageDialog(this, "Exported " + all.size() + " results to\n" + target,
-                    "Auth Check", JOptionPane.INFORMATION_MESSAGE);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Could not write the CSV:\n" + e.getMessage(),
-                    "Auth Check", JOptionPane.ERROR_MESSAGE);
         }
     }
 
