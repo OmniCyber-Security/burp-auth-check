@@ -128,9 +128,11 @@ is what keeps the jar's `Implementation-Version` honest.
   workflow reach `run:` steps through `env:`, and everything else stays inside
   `github-script`, where the event payload is data rather than script.
 - The organisation defaults workflow tokens to read-only. The release job requests
-  `contents: write` explicitly, which is the minimum needed to create a tag and a
-  release. If that org policy is ever tightened to hard-deny, the release steps will
-  403 and a PAT secret would be needed instead.
+  `contents: write` for the tag, the release and its asset, and `pull-requests: read`
+  to read the label off the merged pull request — a job-level block replaces the
+  workflow default outright rather than adding to it, so both have to be listed. If
+  that org policy is ever tightened to hard-deny, the release steps will 403 and a
+  PAT secret would be needed instead.
 
 ---
 
