@@ -194,27 +194,36 @@ public final class ResultsRepository {
     /** Removes every stored result. Login traffic is kept with the scripts. */
     public void clear() {
         writer.execute(() -> {
-            PersistedObject root = api.persistence().extensionData();
-            root.deleteChildObject(ROOT_KEY);
-            persistedKeys.clear();
-            resultsRoot = null;
-            resultsDirty = false;
+            try {
+                PersistedObject root = api.persistence().extensionData();
+                root.deleteChildObject(ROOT_KEY);
+                persistedKeys.clear();
+                resultsRoot = null;
+                resultsDirty = false;
+            } catch (Exception e) {
+                api.logging().logToError("[auth-check] Could not clear stored results", e);
+            }
         });
     }
 
     /** Removes stored login traffic for an identity that has been deleted. */
     public void forgetIdentity(String identityId) {
         writer.execute(() -> {
-            PersistedObject root = api.persistence().extensionData();
-            PersistedObject store = root.getChildObject(TRANSCRIPTS_KEY);
-            if (store == null) {
-                return;
-            }
-            store.deleteChildObject(identityId);
-            if (!liveChildWrites) {
-                // The fetched child was a detached copy, so the deletion only
-                // takes effect once the copy is written back.
-                root.setChildObject(TRANSCRIPTS_KEY, store);
+            try {
+                PersistedObject root = api.persistence().extensionData();
+                PersistedObject store = root.getChildObject(TRANSCRIPTS_KEY);
+                if (store == null) {
+                    return;
+                }
+                store.deleteChildObject(identityId);
+                if (!liveChildWrites) {
+                    // The fetched child was a detached copy, so the deletion only
+                    // takes effect once the copy is written back.
+                    root.setChildObject(TRANSCRIPTS_KEY, store);
+                }
+            } catch (Exception e) {
+                api.logging().logToError("[auth-check] Could not remove stored login traffic for "
+                        + identityId, e);
             }
         });
     }
@@ -361,9 +370,15 @@ public final class ResultsRepository {
     }
 
     private void flush() {
-        if (resultsDirty && resultsRoot != null) {
-            api.persistence().extensionData().setChildObject(ROOT_KEY, resultsRoot);
-            resultsDirty = false;
+        try {
+            if (resultsDirty && resultsRoot != null) {
+                api.persistence().extensionData().setChildObject(ROOT_KEY, resultsRoot);
+                resultsDirty = false;
+            }
+        } catch (Exception e) {
+            // Runs on the writer thread, including as the last task before
+            // shutdown; an escape here would be swallowed without trace.
+            api.logging().logToError("[auth-check] Could not flush results to the project", e);
         }
     }
 

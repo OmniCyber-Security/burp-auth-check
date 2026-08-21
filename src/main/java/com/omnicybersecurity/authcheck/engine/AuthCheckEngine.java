@@ -134,7 +134,9 @@ public final class AuthCheckEngine {
             skippedCount.incrementAndGet();
             return;
         }
-        // Move the payload off Burp's proxy thread and out of heap before queueing.
+        // Copy to a temp file on Burp's own thread: the request and response
+        // handed to an HttpHandler must not be referenced once it returns, and
+        // holding the bodies in heap would not survive a large project.
         HttpRequestResponse baseline = HttpRequestResponse
                 .httpRequestResponse(request, response)
                 .copyToTempFile();
@@ -142,14 +144,28 @@ public final class AuthCheckEngine {
         autoExecutor.execute(() -> runAndPublish(baseline, source));
     }
 
-    /** Tests a request on demand, ignoring every filter and the dedupe cache. */
+    /**
+     * Tests a request on demand, ignoring every filter and the dedupe cache.
+     *
+     * <p>Called straight from a context menu, so the event thread must not do any
+     * of the work: "Send to Auth Check" on a large Proxy history selection would
+     * otherwise copy every message to disk before the menu even closed. The
+     * exchanges handed in are already backed by Burp's own storage, so deferring
+     * the copy keeps nothing extra in heap.
+     */
     public void submitManual(List<HttpRequestResponse> exchanges) {
         for (HttpRequestResponse exchange : exchanges) {
             if (exchange == null) {
                 continue;
             }
-            HttpRequestResponse baseline = exchange.copyToTempFile();
-            manualExecutor.execute(() -> runAndPublish(baseline, "Manual"));
+            manualExecutor.execute(() -> {
+                // Outside runAndPublish's own guard, so the copy is covered too.
+                try {
+                    runAndPublish(exchange.copyToTempFile(), "Manual");
+                } catch (Exception e) {
+                    api.logging().logToError("[auth-check] Could not queue a manual test", e);
+                }
+            });
         }
     }
 
@@ -201,6 +217,11 @@ public final class AuthCheckEngine {
 
     // -- execution -----------------------------------------------------------
 
+    /**
+     * Runs one test and publishes the record. The whole body is guarded because
+     * this is a thread the extension owns, and Burp neither catches nor reports
+     * what escapes one.
+     */
     private void runAndPublish(HttpRequestResponse baseline, String source) {
         try {
             AuthTestRecord record = run(baseline, source);

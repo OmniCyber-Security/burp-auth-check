@@ -1,5 +1,6 @@
 package com.omnicybersecurity.authcheck.ui;
 
+import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.core.ToolType;
 import com.omnicybersecurity.authcheck.config.Configuration;
 import com.omnicybersecurity.authcheck.config.Settings;
@@ -10,7 +11,6 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
@@ -24,6 +24,7 @@ import java.util.Set;
 /** The Settings tab: what gets tested, and how responses are judged. */
 public final class SettingsPanel extends JPanel {
 
+    private final MontoyaApi api;
     private final Configuration configuration;
 
     private final JCheckBox autoTestEnabled = new JCheckBox("Automatically test traffic as it arrives");
@@ -63,8 +64,9 @@ public final class SettingsPanel extends JPanel {
     private final JTextField unauthStripHeaders = new JTextField(64);
     private final JTextField maxPersistedRecords = new JTextField(8);
 
-    public SettingsPanel(Configuration configuration) {
+    public SettingsPanel(MontoyaApi api, Configuration configuration) {
         super(new BorderLayout());
+        this.api = api;
         this.configuration = configuration;
 
         add(buildToolBar(), BorderLayout.NORTH);
@@ -210,7 +212,7 @@ public final class SettingsPanel extends JPanel {
     private void apply() {
         String error = validateFields();
         if (error != null) {
-            JOptionPane.showMessageDialog(this, error, "Auth Check", JOptionPane.ERROR_MESSAGE);
+            UiUtils.error(api, this, error);
             return;
         }
         Settings settings = configuration.settings();
@@ -259,10 +261,8 @@ public final class SettingsPanel extends JPanel {
     }
 
     private void restoreDefaults() {
-        int choice = JOptionPane.showConfirmDialog(this,
-                "Reset all settings to their defaults? Identities and credentials are not affected.",
-                "Auth Check", JOptionPane.OK_CANCEL_OPTION);
-        if (choice != JOptionPane.OK_OPTION) {
+        if (!UiUtils.confirm(api, this,
+                "Reset all settings to their defaults? Identities and credentials are not affected.")) {
             return;
         }
         Settings defaults = new Settings();
