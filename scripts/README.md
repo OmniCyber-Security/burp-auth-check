@@ -11,6 +11,7 @@ jar; they are not duplicated anywhere in the Java.
 | File | Pattern |
 |---|---|
 | [`api-key-header.groovy`](api-key-header.groovy) | Static API key or token — no login flow |
+| [`static-session-cookie.groovy`](static-session-cookie.groovy) | Static session cookie — a name and value you already have |
 | [`json-login-bearer.groovy`](json-login-bearer.groovy) | JSON login → bearer token |
 | [`form-login-session-cookie.groovy`](form-login-session-cookie.groovy) | HTML form login with CSRF → session cookie |
 | [`oauth2-refresh-token.groovy`](oauth2-refresh-token.groovy) | Password grant, reusing the refresh token via `vars` |
