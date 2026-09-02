@@ -25,7 +25,7 @@ val buildCommit: Provider<String> =
         )
         .map { it.ifBlank { "unknown" } }
         .orElse("unknown")
-val groovyVersion = "5.1.0"
+val groovyVersion = "5.1.1"
 
 dependencies {
     // Provided by Burp at runtime -- must NOT be bundled.
