@@ -98,11 +98,14 @@ fails until it does, so the question is answered before the merge rather than af
 | `release:major` | `X+1.0.0` — incompatible change to how the extension is used or configured |
 | `release:minor` | `X.Y+1.0` — new capability, backwards compatible |
 | `release:patch` | `X.Y.Z+1` — fix or internal change, no new capability |
-| `release:none` | No release. Docs, CI, and anything that does not change the jar |
+| `release:none` | No release. Docs, CI, and anything that changes neither the jar nor the Chrome recorder |
 
 On a push to `main` the release job reads that label off the merged pull request,
 works out the next version from the newest `v*` tag, builds the jar **stamped with
-that version**, then creates the tag and the release and attaches the jar. A commit
+that version**, then creates the tag and the release and attaches the jar. The
+[Chrome recorder](#recording-a-login-in-chrome) is packaged in the same job, with the
+same version stamped into its manifest, and attached beside it as
+`auth-check-recorder-<version>.zip`. A commit
 pushed straight to `main` has no pull request and so releases nothing; run the
 workflow manually with a `bump` input if it should have.
 
