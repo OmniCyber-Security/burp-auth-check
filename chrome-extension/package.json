@@ -1,12 +1,12 @@
 {
   "name": "auth-check-recorder",
   "private": true,
-  "version": "0.1.0",
   "description": "Chrome companion to the Auth Check Burp extension: records a login and generates the identity's auth script.",
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "golden": "UPDATE_GOLDEN=1 node --test"
+    "golden": "UPDATE_GOLDEN=1 node --test",
+    "build": "node build.mjs"
   },
   "engines": {
     "node": ">=20"

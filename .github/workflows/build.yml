@@ -82,6 +82,10 @@ jobs:
         working-directory: chrome-extension
         run: node --test
 
+      - name: Package the Chrome recorder
+        working-directory: chrome-extension
+        run: node build.mjs
+
       # `build` runs the tests and produces the shaded extension jar.
       - name: Build and test
         run: ./gradlew --no-daemon build
@@ -91,6 +95,13 @@ jobs:
         with:
           name: burp-auth-check-jar
           path: build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Upload the Chrome recorder as a build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: auth-check-recorder
+          path: chrome-extension/dist/*.zip
           if-no-files-found: error
 
       # Only useful when something broke, so it is not uploaded otherwise.
@@ -241,7 +252,19 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: ./gradlew --no-daemon -Pversion="$VERSION" build
 
-      - name: Tag, release and attach the jar
+      # Stamped with the same version, so the extension, the jar and the tag
+      # all say one number. The recorder's tests run first for the same reason
+      # the jar's do: this is the build that ships.
+      - name: Package the Chrome recorder
+        if: steps.bump.outputs.bump != 'none'
+        working-directory: chrome-extension
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node --test
+          node build.mjs --version "$VERSION"
+
+      - name: Tag, release and attach the jar and the recorder
         if: steps.bump.outputs.bump != 'none'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -256,9 +279,15 @@ jobs:
 
             const jarName = `burp-auth-check-${VERSION}.jar`;
             const jar = path.join('build', 'libs', jarName);
-            if (!fs.existsSync(jar)) {
-              core.setFailed(`The build did not produce ${jar}.`);
-              return;
+            const zipName = `auth-check-recorder-${VERSION}.zip`;
+            const zip = path.join('chrome-extension', 'dist', zipName);
+            // Both checked before anything is created: a tag is cheap to make
+            // and awkward to take back once someone has fetched it.
+            for (const file of [jar, zip]) {
+              if (!fs.existsSync(file)) {
+                core.setFailed(`The build did not produce ${file}.`);
+                return;
+              }
             }
 
             // Tag first: if the release call fails, the tag is a harmless
@@ -276,19 +305,28 @@ jobs:
               body: [
                 `Install: Burp -> Extensions -> Installed -> Add -> Extension type **Java** -> \`${jarName}\``,
                 '',
+                `Chrome recorder (optional): unzip \`${zipName}\`, then \`chrome://extensions\` -> Developer mode -> `
+                  + '**Load unpacked** -> the unzipped folder.',
+                '',
               ].join('\n'),
             });
 
-            await github.rest.repos.uploadReleaseAsset({
-              owner, repo,
-              release_id: release.id,
-              name: jarName,
-              headers: {
-                'content-type': 'application/java-archive',
-                'content-length': fs.statSync(jar).size,
-              },
-              data: fs.readFileSync(jar),
-            });
+            const assets = [
+              { file: jar, name: jarName, type: 'application/java-archive' },
+              { file: zip, name: zipName, type: 'application/zip' },
+            ];
+            for (const asset of assets) {
+              await github.rest.repos.uploadReleaseAsset({
+                owner, repo,
+                release_id: release.id,
+                name: asset.name,
+                headers: {
+                  'content-type': asset.type,
+                  'content-length': fs.statSync(asset.file).size,
+                },
+                data: fs.readFileSync(asset.file),
+              });
+            }
 
             await core.summary
               .addHeading(`Released ${TAG}`, 3)

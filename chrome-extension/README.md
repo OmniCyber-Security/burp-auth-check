@@ -15,11 +15,19 @@ identity you add.
 
 ## Installing
 
-Not on the Chrome Web Store. Load it unpacked:
+Not on the Chrome Web Store. Each
+[release](https://github.com/OmniCyber-Security/burp-auth-check/releases) attaches
+`auth-check-recorder-<version>.zip` next to the Burp jar, at the same version.
 
-1. `chrome://extensions` → turn on **Developer mode**.
-2. **Load unpacked** → select this `chrome-extension/` directory.
-3. Pin **Auth Check Recorder** to the toolbar.
+1. Download the zip and unzip it somewhere it can stay. Chrome loads the extension
+   from that folder every time it starts.
+2. `chrome://extensions` → turn on **Developer mode**.
+3. **Load unpacked** → select the unzipped folder.
+4. Pin **Auth Check Recorder** to the toolbar.
+
+To update, unzip the new release over the same folder and press the reload icon on
+the extension's card. From a checkout, **Load unpacked** on `chrome-extension/`
+works the same way.
 
 Needs Chrome (or another Chromium browser) 125 or newer.
 
@@ -130,6 +138,8 @@ src/popup.*           start / stop
 ```bash
 node --test          # unit tests and golden scripts
 npm run golden       # rewrite test/golden/*.groovy after an intended change
+node build.mjs       # dist/auth-check-recorder-<manifest version>.zip
+node build.mjs --version 1.4.0   # what the release job runs, stamping the release version
 ```
 
 `test/golden/*.groovy` is also read by the Burp extension's
