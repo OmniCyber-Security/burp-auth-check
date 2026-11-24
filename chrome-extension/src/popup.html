@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Auth Check Recorder</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { width: 320px; padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 2px; }
+    .target { margin: 0 0 12px; word-break: break-all; }
+    label { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0; }
+    .actions { display: flex; gap: 8px; margin-top: 12px; }
+    .actions button { flex: 1; }
+    .live { font-size: 22px; font-weight: 600; }
+    .error { color: var(--danger); margin-top: 8px; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); margin-right: 6px; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 50% { opacity: .3; } }
+    ol { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>Auth Check Recorder</h1>
+  <p class="target muted" id="target"></p>
+
+  <section id="idle" hidden>
+    <label><input type="checkbox" id="reload" checked>
+      <span>Reload the page when recording starts<br><span class="muted">so the login page itself, with its CSRF token, is captured</span></span></label>
+    <label><input type="checkbox" id="clear">
+      <span>Delete this site's cookies first<br><span class="muted">start logged out. Signs you out of this site in this profile</span></span></label>
+    <div class="actions">
+      <button class="primary" id="start">Start recording</button>
+    </div>
+    <ol>
+      <li>Log in as normal: type the username, password and any code.</li>
+      <li>Load one page that needs the session.</li>
+      <li>Stop, then review the generated script.</li>
+    </ol>
+  </section>
+
+  <section id="recording" hidden>
+    <p><span class="dot"></span><span class="live" id="count">0</span> requests recorded</p>
+    <p class="muted" id="inputs"></p>
+    <div class="actions">
+      <button class="primary" id="stop">Stop and review</button>
+    </div>
+  </section>
+
+  <div class="actions"><button id="editor">Saved recordings</button></div>
+  <p class="error" id="error"></p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

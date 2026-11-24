@@ -75,6 +75,13 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      # The Chrome recorder has no dependencies, so it needs no install step and
+      # no extra action: the runner's preinstalled Node runs its tests. Its
+      # golden scripts are then compiled and run by the Gradle tests below.
+      - name: Test the Chrome recorder
+        working-directory: chrome-extension
+        run: node --test
+
       # `build` runs the tests and produces the shaded extension jar.
       - name: Build and test
         run: ./gradlew --no-daemon build

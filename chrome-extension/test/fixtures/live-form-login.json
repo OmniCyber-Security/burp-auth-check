@@ -1,0 +1,620 @@
+{
+  "exchanges": [
+    {
+      "failed": null,
+      "fromCache": false,
+      "id": "x1",
+      "method": "GET",
+      "mimeType": "text/html",
+      "redirectedFrom": null,
+      "requestBody": null,
+      "requestHeaders": [
+        [
+          "Accept",
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+        ],
+        [
+          "Accept-Encoding",
+          "gzip, deflate, br, zstd"
+        ],
+        [
+          "Accept-Language",
+          "en-GB,en;q=0.9"
+        ],
+        [
+          "Cache-Control",
+          "no-cache"
+        ],
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Cookie",
+          "pre=0b5883cff636"
+        ],
+        [
+          "Host",
+          "localhost:8765"
+        ],
+        [
+          "Pragma",
+          "no-cache"
+        ],
+        [
+          "Sec-Fetch-Dest",
+          "document"
+        ],
+        [
+          "Sec-Fetch-Mode",
+          "navigate"
+        ],
+        [
+          "Sec-Fetch-Site",
+          "none"
+        ],
+        [
+          "Sec-Fetch-User",
+          "?1"
+        ],
+        [
+          "Upgrade-Insecure-Requests",
+          "1"
+        ],
+        [
+          "User-Agent",
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+        ],
+        [
+          "sec-ch-ua",
+          "\"Chromium\";v=\"153\", \"Not_A Brand\";v=\"8\""
+        ],
+        [
+          "sec-ch-ua-mobile",
+          "?0"
+        ],
+        [
+          "sec-ch-ua-platform",
+          "\"Linux\""
+        ]
+      ],
+      "resourceType": "Document",
+      "responseBody": "<!doctype html><title>Login</title><form method=\"post\" action=\"/login\">\n      <input type=\"hidden\" name=\"csrf_token\" value=\"39ffa63feaf74eab\">\n      <input name=\"username\" id=\"u\"><input type=\"password\" name=\"password\" id=\"p\">\n      <button id=\"go\" type=\"submit\">Sign in</button></form>",
+      "responseBodyBase64": false,
+      "responseHeaders": [
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Content-Type",
+          "text/html"
+        ],
+        [
+          "Date",
+          "Tue, 24 Nov 2026 11:52:01 GMT"
+        ],
+        [
+          "Keep-Alive",
+          "timeout=5"
+        ],
+        [
+          "Set-Cookie",
+          "pre=531f46c4b3c2; Path=/"
+        ],
+        [
+          "Transfer-Encoding",
+          "chunked"
+        ]
+      ],
+      "seq": 1,
+      "status": 200,
+      "statusText": "OK",
+      "time": 1795521121410,
+      "url": "http://localhost:8765/login"
+    },
+    {
+      "failed": null,
+      "fromCache": false,
+      "id": "x2",
+      "method": "GET",
+      "mimeType": "text/plain",
+      "redirectedFrom": null,
+      "requestBody": null,
+      "requestHeaders": [
+        [
+          "Accept",
+          "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        ],
+        [
+          "Accept-Encoding",
+          "gzip, deflate, br, zstd"
+        ],
+        [
+          "Accept-Language",
+          "en-GB,en;q=0.9"
+        ],
+        [
+          "Cache-Control",
+          "no-cache"
+        ],
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Cookie",
+          "pre=531f46c4b3c2"
+        ],
+        [
+          "Host",
+          "localhost:8765"
+        ],
+        [
+          "Pragma",
+          "no-cache"
+        ],
+        [
+          "Referer",
+          "http://localhost:8765/login"
+        ],
+        [
+          "Sec-Fetch-Dest",
+          "image"
+        ],
+        [
+          "Sec-Fetch-Mode",
+          "no-cors"
+        ],
+        [
+          "Sec-Fetch-Site",
+          "same-origin"
+        ],
+        [
+          "User-Agent",
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+        ],
+        [
+          "sec-ch-ua",
+          "\"Chromium\";v=\"153\", \"Not_A Brand\";v=\"8\""
+        ],
+        [
+          "sec-ch-ua-mobile",
+          "?0"
+        ],
+        [
+          "sec-ch-ua-platform",
+          "\"Linux\""
+        ]
+      ],
+      "resourceType": "Other",
+      "responseBody": "",
+      "responseBodyBase64": false,
+      "responseHeaders": [
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Date",
+          "Tue, 24 Nov 2026 11:52:01 GMT"
+        ],
+        [
+          "Keep-Alive",
+          "timeout=5"
+        ],
+        [
+          "Transfer-Encoding",
+          "chunked"
+        ]
+      ],
+      "seq": 2,
+      "status": 404,
+      "statusText": "Not Found",
+      "time": 1795521121425,
+      "url": "http://localhost:8765/favicon.ico"
+    },
+    {
+      "failed": null,
+      "fromCache": false,
+      "id": "x3",
+      "method": "POST",
+      "mimeType": "",
+      "redirectedFrom": null,
+      "requestBody": "csrf_token=39ffa63feaf74eab&username=alice&password=pw-Secret1",
+      "requestHeaders": [
+        [
+          "Accept",
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+        ],
+        [
+          "Accept-Encoding",
+          "gzip, deflate, br, zstd"
+        ],
+        [
+          "Accept-Language",
+          "en-GB,en;q=0.9"
+        ],
+        [
+          "Cache-Control",
+          "max-age=0"
+        ],
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Content-Length",
+          "62"
+        ],
+        [
+          "Content-Type",
+          "application/x-www-form-urlencoded"
+        ],
+        [
+          "Cookie",
+          "pre=531f46c4b3c2"
+        ],
+        [
+          "Host",
+          "localhost:8765"
+        ],
+        [
+          "Origin",
+          "http://localhost:8765"
+        ],
+        [
+          "Referer",
+          "http://localhost:8765/login"
+        ],
+        [
+          "Sec-Fetch-Dest",
+          "document"
+        ],
+        [
+          "Sec-Fetch-Mode",
+          "navigate"
+        ],
+        [
+          "Sec-Fetch-Site",
+          "same-origin"
+        ],
+        [
+          "Upgrade-Insecure-Requests",
+          "1"
+        ],
+        [
+          "User-Agent",
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+        ],
+        [
+          "sec-ch-ua",
+          "\"Chromium\";v=\"153\", \"Not_A Brand\";v=\"8\""
+        ],
+        [
+          "sec-ch-ua-mobile",
+          "?0"
+        ],
+        [
+          "sec-ch-ua-platform",
+          "\"Linux\""
+        ]
+      ],
+      "resourceType": "Document",
+      "responseBody": null,
+      "responseBodyBase64": false,
+      "responseHeaders": [
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Date",
+          "Tue, 24 Nov 2026 11:52:02 GMT"
+        ],
+        [
+          "Keep-Alive",
+          "timeout=5"
+        ],
+        [
+          "Location",
+          "/dashboard"
+        ],
+        [
+          "Set-Cookie",
+          "SID=c43fe69a3cfadaf6; Path=/; HttpOnly"
+        ],
+        [
+          "Transfer-Encoding",
+          "chunked"
+        ]
+      ],
+      "seq": 3,
+      "status": 302,
+      "statusText": "Found",
+      "time": 1795521122933,
+      "url": "http://localhost:8765/login"
+    },
+    {
+      "failed": null,
+      "fromCache": false,
+      "id": "x4",
+      "method": "GET",
+      "mimeType": "text/html",
+      "redirectedFrom": "x3",
+      "requestBody": null,
+      "requestHeaders": [
+        [
+          "Accept",
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+        ],
+        [
+          "Accept-Encoding",
+          "gzip, deflate, br, zstd"
+        ],
+        [
+          "Accept-Language",
+          "en-GB,en;q=0.9"
+        ],
+        [
+          "Cache-Control",
+          "max-age=0"
+        ],
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Cookie",
+          "pre=531f46c4b3c2; SID=c43fe69a3cfadaf6"
+        ],
+        [
+          "Host",
+          "localhost:8765"
+        ],
+        [
+          "Referer",
+          "http://localhost:8765/login"
+        ],
+        [
+          "Sec-Fetch-Dest",
+          "document"
+        ],
+        [
+          "Sec-Fetch-Mode",
+          "navigate"
+        ],
+        [
+          "Sec-Fetch-Site",
+          "same-origin"
+        ],
+        [
+          "Upgrade-Insecure-Requests",
+          "1"
+        ],
+        [
+          "User-Agent",
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+        ],
+        [
+          "sec-ch-ua",
+          "\"Chromium\";v=\"153\", \"Not_A Brand\";v=\"8\""
+        ],
+        [
+          "sec-ch-ua-mobile",
+          "?0"
+        ],
+        [
+          "sec-ch-ua-platform",
+          "\"Linux\""
+        ]
+      ],
+      "resourceType": "Document",
+      "responseBody": "<!doctype html><title>Dash</title>Signed in<script>fetch(\"/api/me\")</script>",
+      "responseBodyBase64": false,
+      "responseHeaders": [
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Content-Type",
+          "text/html"
+        ],
+        [
+          "Date",
+          "Tue, 24 Nov 2026 11:52:02 GMT"
+        ],
+        [
+          "Keep-Alive",
+          "timeout=5"
+        ],
+        [
+          "Transfer-Encoding",
+          "chunked"
+        ]
+      ],
+      "seq": 4,
+      "status": 200,
+      "statusText": "OK",
+      "time": 1795521122935,
+      "url": "http://localhost:8765/dashboard"
+    },
+    {
+      "failed": null,
+      "fromCache": false,
+      "id": "x5",
+      "method": "GET",
+      "mimeType": "application/json",
+      "redirectedFrom": null,
+      "requestBody": null,
+      "requestHeaders": [
+        [
+          "Accept",
+          "*/*"
+        ],
+        [
+          "Accept-Encoding",
+          "gzip, deflate, br, zstd"
+        ],
+        [
+          "Accept-Language",
+          "en-GB,en;q=0.9"
+        ],
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Cookie",
+          "pre=531f46c4b3c2; SID=c43fe69a3cfadaf6"
+        ],
+        [
+          "Host",
+          "localhost:8765"
+        ],
+        [
+          "Referer",
+          "http://localhost:8765/dashboard"
+        ],
+        [
+          "Sec-Fetch-Dest",
+          "empty"
+        ],
+        [
+          "Sec-Fetch-Mode",
+          "cors"
+        ],
+        [
+          "Sec-Fetch-Site",
+          "same-origin"
+        ],
+        [
+          "User-Agent",
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+        ],
+        [
+          "sec-ch-ua",
+          "\"Chromium\";v=\"153\", \"Not_A Brand\";v=\"8\""
+        ],
+        [
+          "sec-ch-ua-mobile",
+          "?0"
+        ],
+        [
+          "sec-ch-ua-platform",
+          "\"Linux\""
+        ]
+      ],
+      "resourceType": "Fetch",
+      "responseBody": "{\"user\":\"alice\"}",
+      "responseBodyBase64": false,
+      "responseHeaders": [
+        [
+          "Connection",
+          "keep-alive"
+        ],
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Date",
+          "Tue, 24 Nov 2026 11:52:02 GMT"
+        ],
+        [
+          "Keep-Alive",
+          "timeout=5"
+        ],
+        [
+          "Transfer-Encoding",
+          "chunked"
+        ]
+      ],
+      "seq": 5,
+      "status": 200,
+      "statusText": "OK",
+      "time": 1795521122943,
+      "url": "http://localhost:8765/api/me"
+    }
+  ],
+  "id": "cap-mwumx01r",
+  "inputs": [
+    {
+      "autocomplete": "",
+      "id": "u",
+      "label": "",
+      "name": "username",
+      "placeholder": "",
+      "reason": "change",
+      "time": 1795521122928,
+      "type": "text",
+      "url": "http://localhost:8765/login",
+      "value": "alice"
+    },
+    {
+      "autocomplete": "",
+      "id": "p",
+      "label": "",
+      "name": "password",
+      "placeholder": "",
+      "reason": "change",
+      "time": 1795521122929,
+      "type": "password",
+      "url": "http://localhost:8765/login",
+      "value": "pw-Secret1"
+    },
+    {
+      "autocomplete": "",
+      "id": "u",
+      "label": "",
+      "name": "username",
+      "placeholder": "",
+      "reason": "submit",
+      "time": 1795521122929,
+      "type": "text",
+      "url": "http://localhost:8765/login",
+      "value": "alice"
+    },
+    {
+      "autocomplete": "",
+      "id": "p",
+      "label": "",
+      "name": "password",
+      "placeholder": "",
+      "reason": "submit",
+      "time": 1795521122929,
+      "type": "password",
+      "url": "http://localhost:8765/login",
+      "value": "pw-Secret1"
+    },
+    {
+      "autocomplete": "",
+      "id": "u",
+      "label": "",
+      "name": "username",
+      "placeholder": "",
+      "reason": "submit",
+      "time": 1795521122929,
+      "type": "text",
+      "url": "http://localhost:8765/login",
+      "value": "alice"
+    },
+    {
+      "autocomplete": "",
+      "id": "p",
+      "label": "",
+      "name": "password",
+      "placeholder": "",
+      "reason": "submit",
+      "time": 1795521122929,
+      "type": "password",
+      "url": "http://localhost:8765/login",
+      "value": "pw-Secret1"
+    }
+  ],
+  "startedAt": 1795521121407,
+  "stoppedAt": 1795521125433,
+  "tabUrl": "http://localhost:8765/login",
+  "title": "Login"
+}
