@@ -43,6 +43,12 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // RecordedScriptsTest runs the Chrome recorder's generated scripts, and
+    // BundledScriptsTest reads _api-reference.groovy straight from disk. Neither
+    // is on the test classpath, so without these a changed script would leave
+    // the test task up to date and untested.
+    inputs.dir("chrome-extension/test/golden").withPropertyName("recordedScripts")
+    inputs.dir("scripts").withPropertyName("exampleScripts")
     testLogging {
         events("passed", "failed", "skipped")
     }

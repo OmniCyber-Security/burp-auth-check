@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Auth Check Recorder</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header>
+    <div class="brand">Auth Check Recorder</div>
+    <select id="captures" aria-label="Recording"></select>
+    <span class="muted" id="meta"></span>
+    <span class="spacer"></span>
+    <button class="danger" id="delete" title="Recordings hold credentials and live session tokens">Delete recording</button>
+  </header>
+
+  <main id="main" hidden>
+    <section class="requests panel">
+      <div class="panel-head">
+        <h2>Requests</h2>
+        <span class="muted">Ticked requests become script steps. The proof request is the one that shows the login worked.</span>
+        <label class="toggle"><input type="checkbox" id="showAll"> Show excluded</label>
+      </div>
+      <div class="table-wrap">
+        <table id="requests">
+          <thead><tr><th title="Include as a step">Step</th><th title="Request that proves the session">Proof</th><th>#</th><th>Method</th><th>URL</th><th>Status</th><th>What it does</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="detail" class="detail" hidden></div>
+    </section>
+
+    <section class="output panel">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="script" aria-selected="true">Script</button>
+        <button role="tab" data-tab="credentials">Credentials</button>
+        <button role="tab" data-tab="session">Session</button>
+        <button role="tab" data-tab="identities">Identities</button>
+        <button role="tab" data-tab="warnings">Warnings <span id="warnCount" class="chip"></span></button>
+      </nav>
+
+      <div class="tab" id="tab-script">
+        <div class="bar">
+          <button class="primary" id="downloadIdentities">Download identities for Burp</button>
+          <button id="copyScript">Copy script</button>
+          <button id="downloadScript">Download .groovy</button>
+          <span class="muted" id="copied"></span>
+        </div>
+        <pre id="script" class="code"></pre>
+      </div>
+
+      <div class="tab" id="tab-credentials" hidden>
+        <p class="muted">What you typed while recording, recognised in the requests. Each becomes a <code>param</code> the script reads
+          as <code>creds.&lt;name&gt;</code>, so the same script logs in as every identity.</p>
+        <table class="grid" id="params"><thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Recorded value</th><th>From field</th><th></th></tr></thead><tbody></tbody></table>
+        <h3>Missed one?</h3>
+        <p class="muted">Autofill without a submit, or a value set by script, is not seen. Paste the exact value as it was sent:</p>
+        <div class="bar">
+          <input id="newValue" placeholder="Value as sent" type="password" autocomplete="off">
+          <input id="newName" placeholder="Param name, e.g. tenant" autocomplete="off">
+          <button id="addParam">Add</button>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-session" hidden>
+        <p class="muted">What the script returns. It is what the proof request carried that the login produced.</p>
+        <div id="sessionMarker"></div>
+        <h3>Cookies</h3>
+        <div id="sessionCookies" class="checks"></div>
+        <h3>Headers</h3>
+        <div id="sessionHeaders" class="checks"></div>
+        <h3>Base URL</h3>
+        <p class="muted">Requests to this origin are written as <code>${base}/…</code>, so one script can target another environment.</p>
+        <select id="baseOrigin"></select>
+      </div>
+
+      <div class="tab" id="tab-identities" hidden>
+        <p class="muted">Every row becomes an identity sharing the generated script. In Burp: <b>Auth Check → Identities → Import</b>.
+          The file holds these credentials in clear text.</p>
+        <div class="table-wrap"><table class="grid" id="identities"><thead></thead><tbody></tbody></table></div>
+        <div class="bar"><button id="addIdentity">Add identity</button></div>
+      </div>
+
+      <div class="tab" id="tab-warnings" hidden>
+        <div id="warnings"></div>
+      </div>
+    </section>
+  </main>
+
+  <section id="empty" class="empty" hidden>
+    <h2>No recordings yet</h2>
+    <p class="muted">Open the target's login page, click the Auth Check Recorder button in the toolbar, and choose <b>Start recording</b>.</p>
+  </section>
+
+  <script type="module" src="editor.js"></script>
+</body>
+</html>

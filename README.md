@@ -22,6 +22,7 @@ project**, so reopening it restores the evidence as well as the setup.
 - [CI and releases](#ci-and-releases)
 - [Quick start](#quick-start)
 - [Auth scripts](#auth-scripts)
+- [Recording a login in Chrome](#recording-a-login-in-chrome)
 - [Keeping short-lived sessions alive](#keeping-short-lived-sessions-alive)
 - [Reading the verdicts](#reading-the-verdicts)
 - [Avoiding false positives](#avoiding-false-positives)
@@ -74,7 +75,7 @@ Requires a JDK 17 or newer. The Gradle wrapper is included; nothing else to inst
 
 ```bash
 ./gradlew shadowJar   # -> build/libs/burp-auth-check-<version>.jar (~8 MB, bundles Groovy)
-./gradlew test        # 145 tests
+./gradlew test        # 152 tests
 ./gradlew build       # both
 ```
 
@@ -319,6 +320,30 @@ worker threads.
 
 ---
 
+## Recording a login in Chrome
+
+Writing the script by hand is the slow part when the login is a multi-hop redirect
+dance. [`chrome-extension/`](chrome-extension/) is a companion recorder that writes
+it for you: log in once in a Chrome tab, and it produces the script plus an
+identities file for **Identities → Import**.
+
+It works out which requests the session depends on and drops the rest. Every value
+the server issued along the way (CSRF tokens, form actions, redirect `Location`s,
+authorization codes, cookies, bearer tokens) is pulled from the response that issued
+it, so each run gets fresh ones. What you typed becomes a `params` declaration, so
+one script serves every identity. A TOTP code becomes a `totpSecret` param and is
+generated on each run. Each step checks its status against the recording and fails
+at the step that changed.
+
+The generated scripts use the same `http` helper as the templates and are meant to
+be read and edited. The recorder's golden outputs are compiled and run by
+`RecordedScriptsTest` against a server that issues different values on every run,
+so the generator and the engine are tested together.
+[`chrome-extension/README.md`](chrome-extension/README.md) covers installing,
+recording and its limits.
+
+---
+
 ## Keeping short-lived sessions alive
 
 Per identity, on the **Session lifetime** tab:
@@ -495,6 +520,7 @@ src/main/java/com/omnicybersecurity/authcheck/
 ├── engine/                      Request rewriting, response analysis, orchestration
 ├── integration/                 Traffic handler, context menu, session actions
 └── ui/                          Suite tab: results, identities, settings, help
+chrome-extension/                Companion recorder: a recorded login -> script + identities
 ```
 
 The **Help** tab inside the extension carries the same script reference, so you do
@@ -552,7 +578,7 @@ that decides whether a run is trustworthy:
 
 ## Testing
 
-145 JUnit tests cover the parts that decide whether you have a finding, and the parts
+152 JUnit tests cover the parts that decide whether you have a finding, and the parts
 that decide whether you still have it tomorrow:
 
 - **Verdicts** — bypass/enforced/review rules, denial detection, unsuccessful baselines.
@@ -561,6 +587,9 @@ that decide whether you still have it tomorrow:
 - **Request rewriting** — strip order, cookie merging, static-header precedence.
 - **The Groovy engine**, end to end — credentials, `vars` persistence, JSON parsing,
   failure reporting, timeouts.
+- **Recorded scripts** — the Chrome recorder's generated scripts compile, declare
+  what they read, and log in against a fake server issuing fresh tokens, cookies,
+  form actions, redirects and TOTP codes.
 - **Project persistence**, round-tripped — identities, credentials, scripts, tested
   requests and responses, verdicts, and login traffic, plus the storage cap, the
   filters, and coexistence of results with configuration.

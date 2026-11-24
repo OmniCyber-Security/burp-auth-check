@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Auth Check Recorder",
+  "version": "0.1.0",
+  "description": "Records a login in a tab and generates the Auth Check (Burp) script and identities that reproduce it.",
+  "minimum_chrome_version": "125",
+  "permissions": ["debugger", "storage", "unlimitedStorage", "activeTab"],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Auth Check Recorder",
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
