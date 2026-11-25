@@ -110,9 +110,8 @@ public final class ScriptHttp {
     public HttpRequestResponse post(String url, String body, String contentType, Map<String, String> headers) {
         HttpRequest request = HttpRequest.httpRequestFromUrl(url)
                 .withMethod("POST")
-                .withBody(body == null ? "" : body)
-                .withUpdatedHeader("Content-Type", contentType);
-        return send(withHeaders(request, headers));
+                .withBody(body == null ? "" : body);
+        return send(withHeaders(setHeader(request, "Content-Type", contentType), headers));
     }
 
     /** POSTs JSON. Accepts a String, or any Map/List which is serialised for you. */
@@ -138,10 +137,24 @@ public final class ScriptHttp {
         HttpRequest result = request;
         if (headers != null) {
             for (Map.Entry<String, String> entry : headers.entrySet()) {
-                result = result.withUpdatedHeader(entry.getKey(), String.valueOf(entry.getValue()));
+                result = setHeader(result, entry.getKey(), String.valueOf(entry.getValue()));
             }
         }
         return result;
+    }
+
+    /**
+     * Sets a header whether or not the request already has it.
+     *
+     * <p>Montoya's {@code withUpdatedHeader} only changes a header that is
+     * present. A request built from a URL carries Burp's default headers (Accept,
+     * User-Agent, ...) but no Cookie, Content-Type, Origin or Referer, so updating
+     * alone silently dropped exactly the headers a login needs.
+     */
+    private static HttpRequest setHeader(HttpRequest request, String name, String value) {
+        return request.hasHeader(name)
+                ? request.withUpdatedHeader(name, value)
+                : request.withAddedHeader(name, value);
     }
 
     public String encodeForm(Map<String, String> form) {
