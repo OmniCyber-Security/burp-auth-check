@@ -130,6 +130,12 @@ public final class AuthCheckEngine {
             skippedCount.incrementAndGet();
             return;
         }
+        if (!hasSomethingToTest(request.url())) {
+            // Every identity is scoped to some other app; replaying this would
+            // produce a row of nothing.
+            skippedCount.incrementAndGet();
+            return;
+        }
         if (settings.dedupeRequests() && !seenRequests.add(dedupeKey(request, settings))) {
             skippedCount.incrementAndGet();
             return;
@@ -180,6 +186,18 @@ public final class AuthCheckEngine {
 
     private boolean hasSomethingToTest() {
         return !configuration.enabledIdentities().isEmpty() || configuration.settings().testUnauthenticated();
+    }
+
+    private boolean hasSomethingToTest(String url) {
+        if (configuration.settings().testUnauthenticated()) {
+            return true;
+        }
+        for (Identity identity : configuration.enabledIdentities()) {
+            if (identity.appliesTo(url)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // -- filtering -----------------------------------------------------------
@@ -245,7 +263,16 @@ public final class AuthCheckEngine {
             publicEndpoint = result.verdict() == Verdict.BYPASSED;
         }
 
+        String url = baseline.request().url();
         for (Identity identity : configuration.enabledIdentities()) {
+            if (!identity.appliesTo(url)) {
+                // Never send another app's credentials to this one. Recorded,
+                // rather than left blank, so the cell says why it was skipped.
+                results.put(identity.id(), VariantResult.failed(identity.id(), identity.name(),
+                        Verdict.NOT_TESTED, "Not replayed: the URL is outside this identity's scope ("
+                        + identity.scopeRegex() + ")."));
+                continue;
+            }
             results.put(identity.id(), testIdentity(identity, baseline.request(), baseResponse));
         }
 

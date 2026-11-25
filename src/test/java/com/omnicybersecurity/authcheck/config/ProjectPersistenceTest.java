@@ -45,6 +45,7 @@ class ProjectPersistenceTest {
             user.credentials().put("token", "s3cr3t");
             user.sessionInvalidRegex("(?i)token_expired");
             user.refreshIntervalSeconds(240);
+            user.scopeRegex("^https://app1\\.example\\.com/");
             settings.maxPersistedRecords(123);
             settings.persistOnlyInteresting(true);
 
@@ -62,6 +63,7 @@ class ProjectPersistenceTest {
             assertEquals("s3cr3t", back.credentials().get("token"));
             assertEquals("(?i)token_expired", back.sessionInvalidRegex());
             assertEquals(240, back.refreshIntervalSeconds());
+            assertEquals("^https://app1\\.example\\.com/", back.scopeRegex());
             assertEquals(123, reopened.maxPersistedRecords());
             assertTrue(reopened.persistOnlyInteresting());
         });

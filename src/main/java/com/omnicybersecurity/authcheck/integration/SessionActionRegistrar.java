@@ -72,6 +72,11 @@ public final class SessionActionRegistrar {
         if (identity == null) {
             return ActionResult.actionResult(request);
         }
+        if (!identity.appliesTo(request.url())) {
+            // A session-handling rule scoped wider than the identity must not
+            // leak this app's credentials to another one.
+            return ActionResult.actionResult(request);
+        }
         try {
             AuthMaterial material = sessionManager.materialFor(identity);
             if (material == null) {

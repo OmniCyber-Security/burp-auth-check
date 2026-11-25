@@ -1,5 +1,6 @@
 package com.omnicybersecurity.authcheck.model;
 
+import com.omnicybersecurity.authcheck.util.Patterns;
 import com.omnicybersecurity.authcheck.util.Text;
 
 import java.util.LinkedHashMap;
@@ -24,6 +25,7 @@ public final class Identity {
 
     private volatile String name;
     private volatile boolean enabled = true;
+    private volatile String scopeRegex = "";
     private volatile String authScript = "";
     private volatile String staticHeaders = "";
     private volatile String stripHeaders =
@@ -69,6 +71,29 @@ public final class Identity {
 
     public void enabled(boolean value) {
         this.enabled = value;
+    }
+
+    /**
+     * Regex a request URL must match for this identity to be replayed against
+     * it. Blank means every request. Lets one project hold several apps, each
+     * with its own logins, without app 1's users being replayed against app 2.
+     */
+    public String scopeRegex() {
+        return scopeRegex;
+    }
+
+    public void scopeRegex(String value) {
+        this.scopeRegex = Text.nullToEmpty(value);
+    }
+
+    /**
+     * True when this identity should be used for a request to {@code url}. An
+     * invalid scope regex matches nothing: replaying an identity where the tester
+     * meant to fence it off is the worse mistake, and the editor flags the regex.
+     */
+    public boolean appliesTo(String url) {
+        String scope = scopeRegex;
+        return Text.isBlank(scope) || Patterns.find(scope, url);
     }
 
     public String authScript() {
@@ -187,6 +212,7 @@ public final class Identity {
     public Identity duplicate() {
         Identity copy = new Identity(UUID.randomUUID().toString(), name + " (copy)");
         copy.enabled = enabled;
+        copy.scopeRegex = scopeRegex;
         copy.authScript = authScript;
         copy.staticHeaders = staticHeaders;
         copy.stripHeaders = stripHeaders;

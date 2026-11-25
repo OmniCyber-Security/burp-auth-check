@@ -27,6 +27,7 @@ project**, so reopening it restores the evidence as well as the setup.
 - [Reading the verdicts](#reading-the-verdicts)
 - [Avoiding false positives](#avoiding-false-positives)
 - [Session-handling actions](#session-handling-actions-scanner-and-intruder)
+- [Several apps in one project](#several-apps-in-one-project)
 - [What is stored in the project](#what-is-stored-in-the-project)
 - [Settings reference](#settings-reference)
 - [Project layout](#project-layout)
@@ -419,6 +420,25 @@ Burp → Settings → **Sessions** → Session handling rules → Add → Rule a
 a Burp extension → pick the action. Now Scanner, Intruder and Repeater traffic gets
 that identity's live credentials, with the same automatic re-authentication. This is
 what makes a long scan survive a five-minute session timeout.
+
+The action honours the identity's scope (below): a request outside it passes through
+unchanged, so a rule scoped wider than the identity cannot leak its credentials.
+
+---
+
+## Several apps in one project
+
+When one engagement covers several applications, each with its own users, scope each
+identity to its app: **Identities → Credentials → Only URLs matching**. It is a regex
+searched in the full URL, so `^https://app1\.example\.com/` fences an identity to
+one host, and `^https://portal\.example\.com/billing/` to one app on a shared host.
+
+A request outside an identity's scope is never replayed as that identity; its cell
+shows `-` and the tooltip says why. When no identity's scope matches and the
+unauthenticated variant is off, auto-test skips the request entirely. Leave the
+field empty to use the identity everywhere, which is how every identity behaved
+before. An invalid regex matches nothing, and the editor says so, rather than
+falling open and replaying the identity everywhere.
 
 ---
 
