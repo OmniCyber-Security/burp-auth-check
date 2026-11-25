@@ -368,8 +368,9 @@ class RecordedScriptsTest {
     }
 
     /**
-     * A request as the script built it. Headers are updated-or-added, which is
-     * what {@code ScriptHttp} relies on from Burp's {@code withUpdatedHeader}.
+     * A request as the script built it. {@code withUpdatedHeader} follows the strict
+     * Montoya reading -- it changes a present header and never adds a missing one
+     * -- so a helper that relies on it to add Cookie or Content-Type fails here.
      */
     private record FakeRequest(String method, String url, Map<String, String> headers, String body) {
 
@@ -433,7 +434,15 @@ class RecordedScriptsTest {
                         case "hasHeader" -> header((String) a[0]) != null;
                         case "withMethod" -> with((String) a[0], body, headers).proxy();
                         case "withBody" -> with(method, String.valueOf(a[0]), headers).proxy();
-                        case "withUpdatedHeader", "withAddedHeader" -> {
+                        case "withUpdatedHeader" -> {
+                            if (header((String) a[0]) == null) {
+                                yield p;
+                            }
+                            Map<String, String> h = copyWithout((String) a[0]);
+                            h.put((String) a[0], (String) a[1]);
+                            yield with(method, body, h).proxy();
+                        }
+                        case "withAddedHeader" -> {
                             Map<String, String> h = copyWithout((String) a[0]);
                             h.put((String) a[0], (String) a[1]);
                             yield with(method, body, h).proxy();
