@@ -32,6 +32,7 @@ public final class IdentityTransfer {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("name", identity.name());
             entry.put("enabled", identity.enabled());
+            entry.put("scopeRegex", identity.scopeRegex());
             entry.put("notes", identity.notes());
             entry.put("credentials", identity.credentialsSnapshot());
             entry.put("authScript", identity.authScript());
@@ -77,6 +78,7 @@ public final class IdentityTransfer {
             Identity identity = new Identity(UUID.randomUUID().toString(),
                     string(entry, "name", "(imported)"));
             identity.enabled(bool(entry, "enabled", true));
+            identity.scopeRegex(string(entry, "scopeRegex", ""));
             identity.notes(string(entry, "notes", ""));
             identity.authScript(string(entry, "authScript", ""));
             identity.staticHeaders(string(entry, "staticHeaders", ""));

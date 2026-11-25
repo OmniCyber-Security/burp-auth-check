@@ -53,7 +53,8 @@ public final class HelpPanel extends JPanel {
                   <li><b>Identities</b> tab: add one identity per user. Put their login details in the
                       <b>Credentials</b> tab -- these are saved in the Burp project. A script that declares what it
                       needs turns that tab into a form with its own labelled fields; one that does not gives you a
-                      free-form name/value table.</li>
+                      free-form name/value table. If the project covers several apps, each with its own logins,
+                      set <b>Only URLs matching</b> so this identity is only ever replayed against its own app.</li>
                   <li>Write an auth script for each identity, or just set a static <code>Authorization</code> header
                       under <b>Request rewriting</b>. Press <b>Test authentication now</b> to prove it works.</li>
                   <li>Browse the application as your <i>most privileged</i> user, or the user who owns the data. That

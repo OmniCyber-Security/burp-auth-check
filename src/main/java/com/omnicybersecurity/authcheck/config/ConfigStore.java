@@ -136,6 +136,7 @@ public final class ConfigStore {
             }
             Identity identity = new Identity(id, string(node, "name", "(unnamed)"));
             identity.enabled(bool(node, "enabled", true));
+            identity.scopeRegex(string(node, "scopeRegex", ""));
             identity.authScript(string(node, "authScript", ""));
             identity.staticHeaders(string(node, "staticHeaders", ""));
             identity.stripHeaders(string(node, "stripHeaders", identity.stripHeaders()));
@@ -239,6 +240,7 @@ public final class ConfigStore {
         node.setString("sessionValidRegex", identity.sessionValidRegex());
         node.setString("notes", identity.notes());
         node.setBoolean("enabled", identity.enabled());
+        node.setString("scopeRegex", identity.scopeRegex());
         node.setBoolean("reauthOnDenied", identity.reauthOnDenied());
         node.setLong("refreshIntervalSeconds", identity.refreshIntervalSeconds());
 

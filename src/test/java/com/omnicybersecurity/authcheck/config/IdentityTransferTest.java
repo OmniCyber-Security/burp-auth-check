@@ -33,6 +33,7 @@ class IdentityTransferTest {
         identity.sessionCheckUrl("https://target.example.com/api/me");
         identity.sessionValidRegex("\"authenticated\"\\s*:\\s*true");
         identity.reauthOnDenied(false);
+        identity.scopeRegex("^https://target\\.example\\.com/");
         return identity;
     }
 
@@ -55,6 +56,18 @@ class IdentityTransferTest {
         assertEquals(original.sessionValidRegex(), restored.sessionValidRegex());
         assertEquals(original.reauthOnDenied(), restored.reauthOnDenied());
         assertEquals(original.enabled(), restored.enabled());
+        assertEquals(original.scopeRegex(), restored.scopeRegex());
+    }
+
+    @Test
+    void anExportWithoutAScopeImportsUnscoped() {
+        // Older exports and the Chrome recorder's files carry no scope field.
+        String json = "{\"format\":1,\"identities\":[{\"name\":\"Old\"}]}";
+
+        Identity restored = IdentityTransfer.fromJson(json).get(0);
+
+        assertEquals("", restored.scopeRegex());
+        assertTrue(restored.appliesTo("https://anything.example.com/"));
     }
 
     @Test

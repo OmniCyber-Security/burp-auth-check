@@ -13,6 +13,7 @@ import com.omnicybersecurity.authcheck.config.Configuration;
 import com.omnicybersecurity.authcheck.config.IdentityTransfer;
 import com.omnicybersecurity.authcheck.config.ResultsRepository;
 import com.omnicybersecurity.authcheck.model.Identity;
+import com.omnicybersecurity.authcheck.util.Patterns;
 import com.omnicybersecurity.authcheck.util.Text;
 
 import javax.swing.BorderFactory;
@@ -69,6 +70,8 @@ public final class IdentitiesPanel extends JPanel {
     private final JTextField nameField = new JTextField(24);
     private final JCheckBox enabledBox = new JCheckBox("Include this identity in tests");
     private final JTextField notesField = new JTextField(24);
+    private final JTextField scopeRegexField = new JTextField(40);
+    private final JLabel scopeStatusLabel = new JLabel(" ");
 
     private final CredentialsForm credentialsForm;
 
@@ -252,6 +255,13 @@ public final class IdentitiesPanel extends JPanel {
         form.add("Name:", nameField);
         form.addWide(enabledBox);
         form.add("Notes:", notesField);
+        form.add("Only URLs matching:", scopeRegexField);
+        form.addWide(scopeStatusLabel);
+        form.addWide(UiUtils.hint(
+                "Scope this identity to one app when the project covers several, each with its own logins: "
+                + "requests whose URL does not match are never replayed as this identity, and its "
+                + "session-handling action leaves them untouched. Regex, searched in the full URL, e.g. "
+                + "^https://app1\\.example\\.com/ . Leave empty to use it everywhere."));
         form.add("Credentials:", credentialsForm, true);
         form.addWide(UiUtils.hint(
                 "A script that declares a params block gets a form with its own fields; one that does not gets "
@@ -474,6 +484,8 @@ public final class IdentitiesPanel extends JPanel {
             structureTimer.restart();
         });
         bindText(notesField, this::currentIdentity, Identity::notes);
+        bindText(scopeRegexField, this::currentIdentity, Identity::scopeRegex);
+        scopeRegexField.getDocument().addDocumentListener(new SimpleDocumentListener(this::refreshScopeStatus));
         bindText(stripHeadersField, this::currentIdentity, Identity::stripHeaders);
         bindText(tokenHeaderField, this::currentIdentity, Identity::tokenHeaderName);
         bindText(sessionInvalidRegexField, this::currentIdentity, Identity::sessionInvalidRegex);
@@ -583,6 +595,7 @@ public final class IdentitiesPanel extends JPanel {
             nameField.setText(identity.name());
             enabledBox.setSelected(identity.enabled());
             notesField.setText(identity.notes());
+            scopeRegexField.setText(identity.scopeRegex());
             stripHeadersField.setText(identity.stripHeaders());
             staticHeadersArea.setText(identity.staticHeaders());
             tokenHeaderField.setText(identity.tokenHeaderName());
@@ -605,6 +618,7 @@ public final class IdentitiesPanel extends JPanel {
     private void clearFields() {
         nameField.setText("");
         notesField.setText("");
+        scopeRegexField.setText("");
         stripHeadersField.setText("");
         staticHeadersArea.setText("");
         tokenHeaderField.setText("");
@@ -620,12 +634,26 @@ public final class IdentitiesPanel extends JPanel {
     }
 
     private void setFieldsEnabled(boolean enabled) {
-        for (JComponent field : new JComponent[] { nameField, enabledBox, notesField, stripHeadersField,
+        for (JComponent field : new JComponent[] { nameField, enabledBox, notesField, scopeRegexField,
+                stripHeadersField,
                 staticHeadersArea, tokenHeaderField, refreshIntervalField, sessionInvalidRegexField,
                 reauthOnDeniedBox, sessionCheckUrlField, sessionValidRegexField, scriptArea }) {
             field.setEnabled(enabled);
         }
         credentialsForm.setFormEnabled(enabled);
+    }
+
+    /** Says what the scope field currently means, so a typo is not silent. */
+    private void refreshScopeStatus() {
+        String regex = scopeRegexField.getText();
+        String problem = Patterns.validationError(regex);
+        if (problem != null) {
+            scopeStatusLabel.setText("Invalid regex, so this identity is replayed against nothing: " + problem);
+        } else if (Text.isBlank(regex)) {
+            scopeStatusLabel.setText("Applies to every request.");
+        } else {
+            scopeStatusLabel.setText("Applies only to URLs matching this pattern.");
+        }
     }
 
     private void refreshSessionStatus(Identity identity) {
