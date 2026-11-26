@@ -256,9 +256,9 @@ A starting configuration for a typical web application or API:
 | **Login URL pattern (regex):** | `/login`, `/signin`, `/auth/` and similar | Add the application's or identity provider's login path. The field replaces the default rather than adding to it, so keep the default's alternatives, for example `(?i)(/login\|/signin\|/sign-in\|/auth/\|/account/login\|/session/new\|login\.microsoftonline\.com)` | A redirect whose `Location` matches counts as **Enforced** |
 | **Same-response threshold (%):** | 95 | 95 | Lower it a few points if pages carry per-request content (timestamps, short ids) that keeps true bypasses in **Review** |
 | **Follow redirects when replaying** | Off | Off | A 302 to the login page stays visible as enforcement |
-| **Worker threads:** | 4 | 1 or 2 for a fragile target or a production system | There is no rate limit or delay between requests. Fewer threads is the throttle, but for auto-testing only. **Send to Auth Check** and **Retest selected** use at least 2 threads, sized from this value when the extension loads, so reload the extension after lowering it and send fewer requests at a time on a fragile target |
+| **Worker threads:** | 4 | 1 or 2 for a fragile target or a production system | There is no rate limit or delay between requests. Fewer threads is the throttle. It applies to auto-testing and to **Send to Auth Check** and **Retest selected** alike, and takes effect on **Apply**: tests already running finish, and queued ones wait for a free thread |
 | **Response timeout (ms):** | 20000 | Raise it for a slow target | Also applies to auth-script requests |
-| **Store only rows worth revisiting (bypassed, review, auth failed)** | Off | On for a long engagement | Keeps the project file small. Despite the label, only **Bypassed!** and **Review** rows are kept |
+| **Store only rows worth revisiting (bypassed, review, auth failed)** | Off | On for a long engagement | Keeps the project file small. **Enforced** and **Error** rows are discarded |
 
 To find the application's denial signals, log in as a low-privilege user, request
 something only an administrator can see, and read what comes back: the status
@@ -377,22 +377,27 @@ values for the target:
 - **Invalid-session pattern:** find out what a dead session looks like. Take a
   request from Proxy history into Repeater, swap in an expired or logged-out token,
   and send it. Pick something that only that response contains, such as
-  `(?i)www-authenticate: bearer error="invalid_token"` or `(?i)your session has
-  expired`. Add `(?i)` to header patterns: over HTTP/2 header names arrive in
-  lower case. The pattern is matched against the status line, headers and body of
-  every replay, so a pattern that also matches healthy pages causes a login and a
-  second replay for every request.
+  `WWW-Authenticate: Bearer error="invalid_token"` or `(?i)your session has
+  expired`. The status line and headers are matched ignoring case, so header
+  patterns also match the lower-case names HTTP/2 uses. The body is matched
+  exactly as written unless you add `(?i)`. The pattern is matched against the
+  status line, headers and body of every replay, so a pattern that also matches
+  healthy pages causes a login and a second replay for every request.
 - **Session-check URL:** a cheap `GET` that any logged-in user can read, such as
   `/api/me` or the profile page. A recorder import fills it in when the proof
-  request was a `GET`. **Healthy-session pattern:** leave it empty only if a dead
-  session gets a `401`/`403` (or another 4xx/5xx) there. The check does not follow
-  redirects and counts any 2xx or 3xx as alive, so if a dead session is redirected
-  or gets a `200` login page, set it to something only a live session returns, for
-  example `"email"\s*:`.
-- **Re-authenticate when a replay is denied and the session cannot be proven
-  alive** is on by default. Leave it on unless logins are expensive or rate-limited.
-  When it is off, the session-check URL is never used, and only the invalid-session
-  pattern and the session lifetime timer detect expiry.
+  request was a `GET`. **Healthy-session pattern:** with it empty, the check does
+  not follow redirects and counts only a 2xx as alive, so a dead session that gets
+  a `401`/`403`, another 4xx/5xx, or a redirect to the login page is caught. Set it
+  if a dead session gets a `200` login page there, to something only a live session
+  returns, for example `"email"\s*:`. Set it too if the URL redirects even when
+  logged in (or point the check at the redirect's target): otherwise every probe
+  reads as dead and each denial costs a re-auth.
+- **Without a session-check URL, re-authenticate speculatively when a replay is
+  denied** is on by default. It only matters when no session-check URL is set:
+  a configured check URL is always probed on a denial, whatever this setting says.
+  Leave it on unless logins are expensive or rate-limited. When it is off and there
+  is no check URL, only the invalid-session pattern and the session lifetime timer
+  detect expiry.
 
 ### 7. Capture the baseline
 
@@ -722,11 +727,13 @@ Per identity, on the **Session lifetime** tab:
   `(?i)"error"\s*:\s*"(invalid_token|token_expired)"`, `(?i)please log in again`.
 - **Session-check URL** + **Healthy-session pattern** — a cheap authenticated
   endpoint used to settle whether a `401`/`403` meant "expired" or "not allowed".
-  Leave the pattern empty to accept any 2xx/3xx.
-- **Re-authenticate when a replay is denied and the session cannot be proven
-  alive** — on by default. Without a session-check URL, a denied replay then
-  triggers one speculative re-auth per identity per 10s. Untick it to treat every
-  denial as enforcement.
+  Leave the pattern empty to accept only a 2xx; a redirect (such as one to the
+  login page) counts as a dead session.
+- **Without a session-check URL, re-authenticate speculatively when a replay is
+  denied** — on by default. With no session-check URL, a denied replay then
+  triggers one speculative re-auth per identity per 10s. Untick it to treat those
+  denials as enforcement. It has no effect while a session-check URL is set: the
+  check URL is probed on every denial (cached for 5s) and decides.
 
 Configuring the invalid-session pattern is the single highest-value thing you can do
 for a fast-expiring target. Without it the extension falls back to rate-limited
@@ -852,9 +859,9 @@ results in the project**:
 
 - **Store tested requests and responses in the Burp project** — off writes nothing,
   neither results nor login traffic (default on).
-- **Store only rows worth revisiting (bypassed, review, auth failed)** — despite the
-  label, keeps only rows whose worst verdict is **Bypassed!** or **Review**. Enforced
-  rows, which are usually the bulk, are discarded, and so are **Auth failed** and
+- **Store only rows worth revisiting (bypassed, review, auth failed)** — keeps only
+  rows where at least one identity's verdict is **Bypassed!**, **Review** or **Auth
+  failed**. Enforced rows, which are usually the bulk, are discarded, and so are
   **Error** rows.
 - **Store at most N results** — default 500, independent of how many are held in
   memory. Oldest are dropped first. `0` stores none.

@@ -26,8 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +47,7 @@ public final class AuthCheckEngine {
     private final RecordStore records;
 
     private final ThreadPoolExecutor autoExecutor;
-    private final ExecutorService manualExecutor;
+    private final ThreadPoolExecutor manualExecutor;
 
     private final Set<String> seenRequests = ConcurrentHashMap.newKeySet();
     private final AtomicInteger recordCounter = new AtomicInteger();
@@ -84,24 +82,38 @@ public final class AuthCheckEngine {
                     droppedCount.incrementAndGet();
                     statusListener.run();
                 });
-        this.manualExecutor = Executors.newFixedThreadPool(Math.max(2, settings.threadCount()), task -> {
-            Thread thread = new Thread(task, "auth-check-manual-" + threadCounter.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        });
+        // Unbounded queue: the tester asked for every one of these, so nothing
+        // is shed. The thread count is the throttle, exactly as configured.
+        this.manualExecutor = new ThreadPoolExecutor(
+                settings.threadCount(), settings.threadCount(), 60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                task -> {
+                    Thread thread = new Thread(task, "auth-check-manual-" + threadCounter.incrementAndGet());
+                    thread.setDaemon(true);
+                    return thread;
+                });
 
         configuration.onSettingsChanged(this::applySettings);
     }
 
     private void applySettings() {
         int threads = configuration.settings().threadCount();
+        resize(autoExecutor, threads);
+        resize(manualExecutor, threads);
+    }
+
+    /**
+     * Sets a fixed-size pool to {@code threads}. Queued tasks are kept, and
+     * running ones finish; when shrinking, surplus workers exit once idle.
+     */
+    static void resize(ThreadPoolExecutor executor, int threads) {
         // Grow before shrinking so the pool never transiently has max < core.
-        if (threads > autoExecutor.getCorePoolSize()) {
-            autoExecutor.setMaximumPoolSize(threads);
-            autoExecutor.setCorePoolSize(threads);
-        } else if (threads < autoExecutor.getCorePoolSize()) {
-            autoExecutor.setCorePoolSize(threads);
-            autoExecutor.setMaximumPoolSize(threads);
+        if (threads > executor.getCorePoolSize()) {
+            executor.setMaximumPoolSize(threads);
+            executor.setCorePoolSize(threads);
+        } else if (threads < executor.getCorePoolSize()) {
+            executor.setCorePoolSize(threads);
+            executor.setMaximumPoolSize(threads);
         }
     }
 
