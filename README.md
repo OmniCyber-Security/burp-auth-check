@@ -384,11 +384,13 @@ values for the target:
   second replay for every request.
 - **Session-check URL:** a cheap `GET` that any logged-in user can read, such as
   `/api/me` or the profile page. A recorder import fills it in when the proof
-  request was a `GET`. **Healthy-session pattern:** leave it empty only if a dead
-  session gets a `401`/`403` (or another 4xx/5xx) there. The check does not follow
-  redirects and counts any 2xx or 3xx as alive, so if a dead session is redirected
-  or gets a `200` login page, set it to something only a live session returns, for
-  example `"email"\s*:`.
+  request was a `GET`. **Healthy-session pattern:** with it empty, the check does
+  not follow redirects and counts only a 2xx as alive, so a dead session that gets
+  a `401`/`403`, another 4xx/5xx, or a redirect to the login page is caught. Set it
+  if a dead session gets a `200` login page there, to something only a live session
+  returns, for example `"email"\s*:`. Set it too if the URL redirects even when
+  logged in (or point the check at the redirect's target): otherwise every probe
+  reads as dead and each denial costs a re-auth.
 - **Re-authenticate when a replay is denied and the session cannot be proven
   alive** is on by default. Leave it on unless logins are expensive or rate-limited.
   When it is off, the session-check URL is never used, and only the invalid-session
@@ -722,7 +724,8 @@ Per identity, on the **Session lifetime** tab:
   `(?i)"error"\s*:\s*"(invalid_token|token_expired)"`, `(?i)please log in again`.
 - **Session-check URL** + **Healthy-session pattern** — a cheap authenticated
   endpoint used to settle whether a `401`/`403` meant "expired" or "not allowed".
-  Leave the pattern empty to accept any 2xx/3xx.
+  Leave the pattern empty to accept only a 2xx; a redirect (such as one to the
+  login page) counts as a dead session.
 - **Re-authenticate when a replay is denied and the session cannot be proven
   alive** — on by default. Without a session-check URL, a denied replay then
   triggers one speculative re-auth per identity per 10s. Untick it to treat every

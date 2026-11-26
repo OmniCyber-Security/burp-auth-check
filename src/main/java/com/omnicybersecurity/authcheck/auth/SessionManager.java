@@ -243,11 +243,8 @@ public final class SessionManager {
                 return true;
             }
             HttpResponse response = result.response();
-            if (!Text.isBlank(identity.sessionValidRegex())) {
-                return Patterns.find(identity.sessionValidRegex(), responseText(response));
-            }
-            short status = response.statusCode();
-            return status >= 200 && status < 400;
+            return SessionLiveness.isAlive(response.statusCode(), responseText(response),
+                    identity.sessionValidRegex());
         } catch (Exception e) {
             api.logging().logToError("[auth-check] Session check failed for '" + identity.name() + "': " + e);
             return true;
