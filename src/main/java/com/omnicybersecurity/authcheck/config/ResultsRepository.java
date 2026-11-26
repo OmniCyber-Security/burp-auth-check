@@ -411,8 +411,17 @@ public final class ResultsRepository {
         }
     }
 
+    /**
+     * Rows worth revisiting, as the setting's label promises: any variant that
+     * bypassed, needs review, or could not authenticate. Checked per variant
+     * rather than by worst verdict, because Auth failed ties with Error on
+     * severity and would be hidden behind it.
+     */
     private static boolean isInteresting(AuthTestRecord record) {
-        return record.worstVerdict().severity() >= Verdict.NEEDS_REVIEW.severity();
+        return record.results().values().stream().anyMatch(result -> switch (result.verdict()) {
+            case BYPASSED, NEEDS_REVIEW, AUTH_FAILED -> true;
+            case ENFORCED, ERROR, NOT_TESTED -> false;
+        });
     }
 
     private static Verdict parseVerdict(String name) {

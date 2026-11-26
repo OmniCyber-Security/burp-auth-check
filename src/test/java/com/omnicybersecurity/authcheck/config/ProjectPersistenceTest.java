@@ -214,12 +214,14 @@ class ProjectPersistenceTest {
             repository.append(record(1, "GET", 200, Verdict.ENFORCED, "denied"));
             repository.append(record(2, "GET", 200, Verdict.BYPASSED, "reached it"));
             repository.append(record(3, "GET", 200, Verdict.NEEDS_REVIEW, "different content"));
+            repository.append(record(4, "GET", 200, Verdict.AUTH_FAILED, "no session"));
+            repository.append(record(5, "GET", 200, Verdict.ERROR, "timed out"));
             repository.shutdown();
 
             List<AuthTestRecord> restored = new ResultsRepository(persistence.api(), settings).load();
 
-            assertEquals(List.of(2, 3), restored.stream().map(AuthTestRecord::index).toList(),
-                    "enforced rows are the ones not worth the disk space");
+            assertEquals(List.of(2, 3, 4), restored.stream().map(AuthTestRecord::index).toList(),
+                    "bypassed, review and auth failed rows are kept, as the setting's label says");
         });
     }
 
