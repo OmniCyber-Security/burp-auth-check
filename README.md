@@ -389,10 +389,12 @@ values for the target:
   redirects and counts any 2xx or 3xx as alive, so if a dead session is redirected
   or gets a `200` login page, set it to something only a live session returns, for
   example `"email"\s*:`.
-- **Re-authenticate when a replay is denied and the session cannot be proven
-  alive** is on by default. Leave it on unless logins are expensive or rate-limited.
-  When it is off, the session-check URL is never used, and only the invalid-session
-  pattern and the session lifetime timer detect expiry.
+- **Without a session-check URL, re-authenticate speculatively when a replay is
+  denied** is on by default. It only matters when no session-check URL is set:
+  a configured check URL is always probed on a denial, whatever this setting says.
+  Leave it on unless logins are expensive or rate-limited. When it is off and there
+  is no check URL, only the invalid-session pattern and the session lifetime timer
+  detect expiry.
 
 ### 7. Capture the baseline
 
@@ -723,10 +725,11 @@ Per identity, on the **Session lifetime** tab:
 - **Session-check URL** + **Healthy-session pattern** — a cheap authenticated
   endpoint used to settle whether a `401`/`403` meant "expired" or "not allowed".
   Leave the pattern empty to accept any 2xx/3xx.
-- **Re-authenticate when a replay is denied and the session cannot be proven
-  alive** — on by default. Without a session-check URL, a denied replay then
-  triggers one speculative re-auth per identity per 10s. Untick it to treat every
-  denial as enforcement.
+- **Without a session-check URL, re-authenticate speculatively when a replay is
+  denied** — on by default. With no session-check URL, a denied replay then
+  triggers one speculative re-auth per identity per 10s. Untick it to treat those
+  denials as enforcement. It has no effect while a session-check URL is set: the
+  check URL is probed on every denial (cached for 5s) and decides.
 
 Configuring the invalid-session pattern is the single highest-value thing you can do
 for a fast-expiring target. Without it the extension falls back to rate-limited

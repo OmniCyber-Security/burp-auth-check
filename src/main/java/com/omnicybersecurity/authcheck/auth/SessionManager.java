@@ -187,15 +187,20 @@ public final class SessionManager {
      *
      * <p>A denial is the expected outcome of a correctly enforced authorisation
      * check, so this deliberately errs towards <em>not</em> re-authenticating.
+     *
+     * <p>A configured session-check URL always decides. The identity's
+     * {@code reauthOnDenied} setting only governs the speculative re-auth used
+     * when there is no check URL to prove the session alive or dead.
      */
     public boolean shouldReauthAfterDenial(Identity identity) {
-        if (!identity.reauthOnDenied()) {
-            return false;
-        }
         SessionState state = state(identity);
 
         if (!Text.isBlank(identity.sessionCheckUrl())) {
             return !isSessionAlive(identity, state);
+        }
+
+        if (!identity.reauthOnDenied()) {
+            return false;
         }
 
         // No liveness probe available: allow an occasional speculative re-auth.
