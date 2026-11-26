@@ -499,23 +499,90 @@ long test raise the cap or export after each pass.
 
 ### 10. Scanner and Intruder
 
-To scan or fuzz as an identity, use its session-handling action, **Auth Check:
-authenticate as &lt;identity&gt;**, in a Burp session-handling rule. See
-[Session-handling actions](#session-handling-actions-scanner-and-intruder) for the
-steps. Three things to get right in the rule's scope:
+Auth Check publishes every identity as a Burp session-handling action named
+**Auth Check: authenticate as &lt;identity&gt;**. A session-handling rule that
+invokes it rewrites each matching request with that identity's credentials before
+it goes out, in the same way as a replay: the **Strip these headers first:**
+headers come off, then the script's headers, cookies and params and the static
+headers go on. That is how you run an active scan or an Intruder attack as one of
+your test users, without pasting a token that dies halfway through.
 
-- Limit its tools to the ones that should run as that identity, such as Scanner or
-  Intruder. Leave **Proxy** out, or your baseline browsing is rewritten as the
-  identity, and leave **Extensions** out, or every Auth Check replay is too.
-- One rule per identity. The action leaves requests outside the identity's **Only
-  URLs matching:** unchanged and logs nothing, so a request outside that scope goes
-  out with whatever credentials it already had.
-- Disabled identities still have actions registered. Disabling an identity does not
-  stop a rule that uses it.
+**Set up a rule for the identity you want to scan as.** Other identities stay
+idle: an action does nothing until a rule invokes it.
 
-Scanner and Intruder traffic is not auto-tested unless you tick them under **Test
-traffic from:**. Leave them unticked: replaying every scan request as every
-identity multiplies the scan.
+1. Get **Test authentication now** passing for the identity first. A failed login
+   is not reported to the scan (see below).
+2. Burp → **Settings** → **Sessions** → **Session handling rules** → **Add**. Give
+   the rule a description that names the identity, such as "Scan as User A".
+3. **Rule actions** → **Add** → **Invoke a Burp extension** → pick **Auth Check:
+   authenticate as User A**. Add only that one action.
+4. **Scope** tab → **Tools scope**: tick **Scanner** (and **Intruder** if you
+   fuzz as this user too). Leave **Proxy** out, or your baseline browsing is
+   rewritten as the identity. Leave **Extensions** out, or every Auth Check replay
+   is rewritten as well, and every identity's column reads as this one.
+5. **URL scope**: **Use suite scope**, or a custom scope covering only the target.
+6. Look at the other rules in the list. Burp runs every enabled rule whose scope
+   matches, top to bottom, so:
+   - Two rules invoking different Auth Check actions for the same tool and URL
+     means the last one wins. Keep exactly one enabled per tool.
+   - Burp's default **Use cookies from Burp's cookie jar** rule covers Scanner.
+     The cookie jar holds the cookies from your own browsing, so it can put the
+     baseline user's session cookie back on top of the identity's. Untick
+     **Scanner** in that rule's tool scope, or move the Auth Check rule below it.
+7. Start the scan. Burp has no per-scan session setting: the rules apply to every
+   scan in the project while they are enabled.
+
+**Check it before a long scan.** Run a short scan or a single Intruder request,
+then look at the requests in **Logger**. They should carry the identity's
+credentials and nothing of the baseline user's. A session cookie under a
+different name, or an `Authorization`, `Api-Key` or similar header, survives
+unless it is in the identity's **Strip these headers first:** list (step 5). If
+it survives, the server sees two users at once, and the scan results are for
+whichever one it prefers.
+
+**Switching to another identity.** Edit the rule's action and pick the other
+identity, or keep one rule per identity and enable only the one you are
+scanning as. Renaming an identity changes its action name, so check the rule
+still points at it after a rename.
+
+**Keep the session alive for the length of the scan.** The action only sees the
+outgoing request, never the response. That means the invalid-session pattern and
+the session-check URL (step 6) never fire for scanner or Intruder traffic.
+Scanner requests trigger a login in two cases only: when there are no
+credentials yet, or when the credentials are older than the identity's **Session
+lifetime (seconds, 0 = no timer):**. So:
+
+- Set the session lifetime for any identity you scan as. With it at 0 and a
+  session that expires, the rest of the scan goes out with dead credentials, and
+  every check after that point is run unauthenticated without any warning.
+- A scan can still kill the session early, for example when a payload reaches a
+  logout, password-change or account-lock endpoint. Exclude those from the scan
+  (Burp's scan configuration, or the URL scope of the rule), and watch for a wall
+  of `401`/`302` responses in Logger. **Test authentication now** forces a fresh
+  login, and the scan picks the new credentials up on its next request.
+- Auto-testing in the same project shares the session: when a replay
+  re-authenticates the identity, the scan uses the new session too.
+
+**What happens when a request cannot be authenticated.**
+
+- If the script fails, the request goes out **unchanged** and the error is
+  written to Burp → **Extensions** → **Installed** → Auth Check → **Errors**.
+  Further attempts wait 3 seconds after a failure, so a broken script cannot
+  hammer the login endpoint, but scan requests sent during that wait are not
+  authenticated either. If a scan's issues look like an anonymous user's, look
+  there first.
+- A request outside the identity's **Only URLs matching:** also goes out
+  unchanged, with nothing logged. That stops the identity's credentials leaking
+  to another application, but means the request keeps whatever credentials it
+  already had.
+- Disabled identities still have actions registered. Unticking **Include this
+  identity in tests** does not stop a rule that uses it. Disable the rule
+  instead.
+
+**Leave Scanner and Intruder unticked under Test traffic from:** (step 4). With
+them ticked, every scan request is also replayed as every other identity and
+once with no credentials, which multiplies the scan by `N + 1` and fills the
+Results table with scanner payloads.
 
 ### 11. Wrapping up
 
@@ -802,6 +869,12 @@ what makes a long scan survive a five-minute session timeout.
 
 The action honours the identity's scope (below): a request outside it passes through
 unchanged, so a rule scoped wider than the identity cannot leak its credentials.
+
+The action only sees the request, so for scanner and Intruder traffic a new login
+happens only on the identity's session-lifetime timer, never because a response
+showed the session had died. [Step 10 of the user guide](#10-scanner-and-intruder)
+covers scanning as one identity, the cookie-jar rule, and what a failed login
+does to a scan.
 
 ---
 
