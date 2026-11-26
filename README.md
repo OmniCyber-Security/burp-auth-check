@@ -258,7 +258,7 @@ A starting configuration for a typical web application or API:
 | **Follow redirects when replaying** | Off | Off | A 302 to the login page stays visible as enforcement |
 | **Worker threads:** | 4 | 1 or 2 for a fragile target or a production system | There is no rate limit or delay between requests. Fewer threads is the throttle, but for auto-testing only. **Send to Auth Check** and **Retest selected** use at least 2 threads, sized from this value when the extension loads, so reload the extension after lowering it and send fewer requests at a time on a fragile target |
 | **Response timeout (ms):** | 20000 | Raise it for a slow target | Also applies to auth-script requests |
-| **Store only rows worth revisiting (bypassed, review, auth failed)** | Off | On for a long engagement | Keeps the project file small. Despite the label, only **Bypassed!** and **Review** rows are kept |
+| **Store only rows worth revisiting (bypassed, review, auth failed)** | Off | On for a long engagement | Keeps the project file small. **Enforced** and **Error** rows are discarded |
 
 To find the application's denial signals, log in as a low-privilege user, request
 something only an administrator can see, and read what comes back: the status
@@ -852,9 +852,9 @@ results in the project**:
 
 - **Store tested requests and responses in the Burp project** — off writes nothing,
   neither results nor login traffic (default on).
-- **Store only rows worth revisiting (bypassed, review, auth failed)** — despite the
-  label, keeps only rows whose worst verdict is **Bypassed!** or **Review**. Enforced
-  rows, which are usually the bulk, are discarded, and so are **Auth failed** and
+- **Store only rows worth revisiting (bypassed, review, auth failed)** — keeps only
+  rows where at least one identity's verdict is **Bypassed!**, **Review** or **Auth
+  failed**. Enforced rows, which are usually the bulk, are discarded, and so are
   **Error** rows.
 - **Store at most N results** — default 500, independent of how many are held in
   memory. Oldest are dropped first. `0` stores none.
