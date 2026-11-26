@@ -377,11 +377,12 @@ values for the target:
 - **Invalid-session pattern:** find out what a dead session looks like. Take a
   request from Proxy history into Repeater, swap in an expired or logged-out token,
   and send it. Pick something that only that response contains, such as
-  `(?i)www-authenticate: bearer error="invalid_token"` or `(?i)your session has
-  expired`. Add `(?i)` to header patterns: over HTTP/2 header names arrive in
-  lower case. The pattern is matched against the status line, headers and body of
-  every replay, so a pattern that also matches healthy pages causes a login and a
-  second replay for every request.
+  `WWW-Authenticate: Bearer error="invalid_token"` or `(?i)your session has
+  expired`. The status line and headers are matched ignoring case, so header
+  patterns also match the lower-case names HTTP/2 uses. The body is matched
+  exactly as written unless you add `(?i)`. The pattern is matched against the
+  status line, headers and body of every replay, so a pattern that also matches
+  healthy pages causes a login and a second replay for every request.
 - **Session-check URL:** a cheap `GET` that any logged-in user can read, such as
   `/api/me` or the profile page. A recorder import fills it in when the proof
   request was a `GET`. **Healthy-session pattern:** leave it empty only if a dead
