@@ -21,6 +21,7 @@ project**, so reopening it restores the evidence as well as the setup.
 - [Building from source](#building-from-source)
 - [CI and releases](#ci-and-releases)
 - [Quick start](#quick-start)
+- [User guide: testing a web application](#user-guide-testing-a-web-application)
 - [Auth scripts](#auth-scripts)
 - [Recording a login in Chrome](#recording-a-login-in-chrome)
 - [Keeping short-lived sessions alive](#keeping-short-lived-sessions-alive)
@@ -52,8 +53,8 @@ This extension separates the two cases explicitly:
 | Signal | How it is obtained | What happens |
 |---|---|---|
 | **Definitive expiry** | Your per-identity *invalid-session pattern* matched the response | Re-authenticate, replay once, use the replay's verdict |
-| **Ambiguous denial** | `401`/`403` with a *session-check URL* configured | Probe that URL (answer cached 5s); only re-authenticate if it says the session is dead |
-| **Ambiguous denial, no probe** | `401`/`403` with no session-check URL | One speculative re-auth per identity per 10s; if it returns the same credentials, the denial is reported as genuine enforcement |
+| **Ambiguous denial** | An **Enforced** replay (denied status, denial pattern or login redirect) with a *session-check URL* configured | Probe that URL (answer cached 5s); only re-authenticate if it says the session is dead |
+| **Ambiguous denial, no probe** | An **Enforced** replay with no session-check URL | One speculative re-auth per identity per 10s; if it returns the same credentials, the denial is reported as genuine enforcement |
 | **Scheduled expiry** | You set a *session lifetime* | A background task re-authenticates at 80% of that age, so replays never race the expiry |
 
 Re-authentication is serialised per identity, so ten concurrent workers needing the
@@ -158,11 +159,372 @@ is what keeps the jar's `Implementation-Version` honest.
 6. **Browse the application as the user who owns the data** — the most privileged
    user, or the owner of the records you care about. That traffic is the baseline.
 7. Either tick **Auto-test in-scope traffic** on the Results tab, or right-click any
-   request anywhere in Burp → **Send to Auth Check**.
+   request anywhere in Burp → **Send to Auth Check**. Restricting auto-test to Burp's
+   scope is the separate **Only test URLs in Burp's target scope** setting, on by
+   default.
 
 Set Burp's target scope before enabling auto-testing. Every tested request is
 replayed once per identity, so a scope of "the whole internet" is both noisy and
 slow.
+
+---
+
+## User guide: testing a web application
+
+The [Quick start](#quick-start) is the short version. This is the long one: an
+authorisation test from first contact with the client to the report, in the order
+you will do it. Each step links to the reference section that has the detail.
+
+### 1. Before you start
+
+Ask the client for accounts before the test window opens. Authorisation testing
+is only as good as the users you have:
+
+- **At least two users in every role**, and in every tenant if the application is
+  multi-tenant. Two users with the same role are what horizontal checks (user A
+  reading user B's records) need. One user per role only gives you vertical checks.
+- **An administrator**, or the most privileged role the application has. Their
+  traffic is the reference for "what access looks like" on admin functions.
+- **Dedicated test accounts**, not real staff accounts. Credentials and live
+  session tokens end up in the Burp project file, unencrypted.
+- **MFA details**, if the accounts use it. For TOTP, ask for the base32 secret
+  from enrolment (or enrol the account yourself and keep the secret). SMS and email
+  codes cannot be scripted.
+
+Agree two things in writing:
+
+- **How to treat state-changing requests.** Every tested request is sent again
+  verbatim, method and body included, once with no credentials and once per
+  identity. A `POST`, `PUT`, `PATCH` or `DELETE` you make while browsing is
+  therefore repeated `1 + N` times, and an identity that re-authenticates mid-test
+  can send it twice. Nothing in the extension treats those methods differently
+  unless you configure it to (step 4). On production, or with data that cannot be
+  reset, agree that destructive requests are tested by hand only.
+- **That the Burp project file is sensitive.** It holds every identity's
+  credentials, every auth script, the login traffic with live tokens, and every
+  tested response. See [What is stored in the project](#what-is-stored-in-the-project).
+
+### 2. Install the Burp extension and the Chrome recorder
+
+1. Install the jar as in [Installing](#installing). A new **Auth Check** tab
+   appears with four sub-tabs: **Results**, **Identities**, **Settings** and
+   **Help**.
+2. Optional, but worth it for any login that is more than a single form post:
+   install the Chrome recorder from the same release. Unzip
+   `auth-check-recorder-<version>.zip` somewhere it can stay,
+   `chrome://extensions` → **Developer mode** → **Load unpacked** → the unzipped
+   folder, and pin **Auth Check Recorder** to the toolbar. It needs Chrome 125 or
+   newer. [`chrome-extension/README.md`](chrome-extension/README.md) has the
+   details.
+3. Start a **new Burp project file** for the engagement. Settings and identities
+   are stored per project, so a fresh project starts from the defaults.
+
+### 3. Set Burp's target scope
+
+Auto-testing only looks at in-scope URLs by default (**Only test URLs in Burp's
+target scope**). With no scope set, nothing is tested, and the only sign of it is
+a growing "skipped by filters" count on the Results status line.
+
+Add the application's hosts to Burp's target scope, and nothing else. Leave the
+identity provider out (for example `login.microsoftonline.com`) unless it is part
+of the test. Auth scripts still log in there; scope only decides which captured
+traffic gets replayed.
+
+### 4. Configure Settings for the engagement
+
+Open **Auth Check → Settings**. Nothing on this tab takes effect until you press
+**Apply**. **Revert** throws away edits you have not applied, and **Restore
+defaults** resets every setting (after a confirmation, and without needing
+Apply) but leaves identities alone. A number that does not parse keeps its
+previous value, and one out of range is clamped. Check the form after Apply.
+
+A starting configuration for a typical web application or API:
+
+| Setting | Default | Start the engagement with | Why |
+|---|---|---|---|
+| **Automatically test traffic as it arrives** | Off | Off, until every identity passes **Test authentication now** | Replays with a broken identity only produce **Auth failed** rows. The **Auto-test in-scope traffic** checkbox on the Results tab is the same setting |
+| **Also replay every request with no credentials** | On | On | It is what flags public endpoints, see [Avoiding false positives](#avoiding-false-positives) |
+| **Only test URLs in Burp's target scope** | On | On | The Results checkbox says "in-scope", but this is the setting that enforces it |
+| **Test traffic from:** | Proxy, Repeater | **Proxy** only | With Repeater ticked, every request you send in Repeater is replayed as every identity, including the destructive ones you are probing by hand. Use **Send to Auth Check** for Repeater requests you do want tested |
+| **Test each endpoint only once** | On | On | An endpoint is method, host, port and path. Query values and the scheme are not part of it |
+| **Treat a different set of parameter names as a different endpoint** | On | On. Turn off if the same endpoint keeps reappearing | Parameter names include cookie names, so an app that adds cookies as you browse makes the same endpoint look new |
+| **Skip these HTTP methods:** | `OPTIONS` | `OPTIONS` on a test environment you can reset. `OPTIONS, DELETE` or `OPTIONS, POST, PUT, PATCH, DELETE` where state changes were not agreed | Filtered methods are never auto-tested. You can still test one deliberately with **Send to Auth Check** |
+| **Never URLs matching (regex):** | empty | `(?i)/(logout\|log-out\|signout\|sign-out)` plus any endpoint the client named as off limits | A replayed logout ends that identity's session, and the next replays then spend time re-authenticating |
+| **Only URLs matching (regex):** | empty | Empty, unless the Burp scope is wider than this test | Searched anywhere in the full URL, scheme and query included. Case-sensitive unless you add `(?i)` |
+| **Denied status codes:** | `401, 403` | Add whatever the application uses to refuse, for example `404` if it hides other users' records behind a not-found | A code on this list makes the replay **Enforced** |
+| **Denied body pattern (regex):** | words such as `forbidden`, `unauthorized`, `access denied` | Narrow it to the application's actual denial message | It is checked against the replay at any status, before the baseline is looked at. A normal page that contains "forbidden" or "unauthorized" anywhere in its first 256 KB, such as help text or a JS bundle, reads as **Enforced**, which hides a real bypass |
+| **Login URL pattern (regex):** | `/login`, `/signin`, `/auth/` and similar | Add the application's or identity provider's login path. The field replaces the default rather than adding to it, so keep the default's alternatives, for example `(?i)(/login\|/signin\|/sign-in\|/auth/\|/account/login\|/session/new\|login\.microsoftonline\.com)` | A redirect whose `Location` matches counts as **Enforced** |
+| **Same-response threshold (%):** | 95 | 95 | Lower it a few points if pages carry per-request content (timestamps, short ids) that keeps true bypasses in **Review** |
+| **Follow redirects when replaying** | Off | Off | A 302 to the login page stays visible as enforcement |
+| **Worker threads:** | 4 | 1 or 2 for a fragile target or a production system | There is no rate limit or delay between requests. Fewer threads is the throttle, but for auto-testing only. **Send to Auth Check** and **Retest selected** use at least 2 threads, sized from this value when the extension loads, so reload the extension after lowering it and send fewer requests at a time on a fragile target |
+| **Response timeout (ms):** | 20000 | Raise it for a slow target | Also applies to auth-script requests |
+| **Store only rows worth revisiting (bypassed, review, auth failed)** | Off | On for a long engagement | Keeps the project file small. Despite the label, only **Bypassed!** and **Review** rows are kept |
+
+To find the application's denial signals, log in as a low-privilege user, request
+something only an administrator can see, and read what comes back: the status
+code, the body, and where a redirect points. That response is what the three
+denial settings should recognise. Check the reverse too: open a few ordinary pages
+as an authorised user and make sure the denied body pattern does not match them.
+
+[Settings reference](#settings-reference) lists every setting and its default.
+
+### 5. Create the identities
+
+Create one identity per test account, on **Auth Check → Identities**. The baseline
+user does not need to be one (see step 7). Pick whichever of the three paths below
+fits the login.
+
+**Path A: record the login with the Chrome recorder.** Best for multi-hop logins
+such as OIDC, SAML-style redirects, CSRF-protected forms and TOTP.
+
+1. Open a **separate Chrome profile** and load the recorder into it (**Load
+   unpacked** again in that profile; extensions do not run in a guest window). A
+   browser that is already signed in, or that the identity provider remembers, does
+   not go through the login a fresh client does. Alternatively tick **Delete this
+   site's cookies first** in the recorder popup. It clears cookies only for the
+   current page's URL, so for a login through a separate identity provider use a
+   clean profile.
+2. Keep auto-test off in Burp while you record, if the browser goes through Burp.
+3. Open the application's login page, click the **Auth Check Recorder** toolbar
+   button, and leave **Reload the page when recording starts** ticked so the login
+   page and its CSRF token are captured. Press **Start recording**.
+4. Log in as one of the test users: username, password and any code.
+5. Load one page that needs the session, such as the dashboard or `/api/me`. The
+   recorder picks the **proof request** automatically, usually the first
+   successful request after login, which may not be the page you loaded.
+6. Press **Stop and review**. The editor opens on the recording.
+7. Check the **Requests** list (ticked requests are script steps, the **Proof**
+   column marks the proof request; if the pick is wrong, select the page you
+   loaded there, because it also becomes the imported session-check URL), the
+   **Credentials** tab (what you typed and the param each value becomes; add
+   anything missed under **Missed one?**), and the **Warnings** tab.
+8. On the **Identities** tab, the first row, **Recorded user**, is pre-filled with
+   what you typed. Press **Add identity** for every other account and fill in its
+   row. Name each row after the user and role ("User A (tenant 1)", "Admin"). For
+   TOTP, paste each account's base32 secret into its row: the code is generated on
+   each run, but the secret is never captured.
+9. On the **Script** tab, press **Download identities for Burp**. You get
+   `auth-check-<host>-identities.json`.
+10. In Burp: **Auth Check → Identities → Import...** and pick the file. The
+    confirmation warns that the identities carry auth scripts, which run as Groovy
+    inside Burp. Read the script on the **Auth script** tab.
+11. For each identity, press **Test authentication now** on the **Auth script**
+    tab, and read the result under **Last authentication**. The **Login traffic**
+    tab then shows every request the script sent and what came back.
+12. Delete the recording in Chrome once the identities work (**Delete
+    recording**). It holds the passwords and live session tokens you used.
+
+Import always adds identities. Importing the same file twice gives you two of
+each, with the same names, so remove the extras with **Remove**.
+
+**Path B: start from a template or write the script.** Best when the login is a
+simple form or JSON call, or you already know the flow.
+
+1. **Add**. The new identity is called "User N". Rename it on the **Credentials**
+   tab (**Name:**).
+2. On the **Auth script** tab, choose a template from **Insert template...**, for
+   example "JSON login -> bearer token" or "HTML form login -> session cookie", and
+   adapt it. [Auth scripts](#auth-scripts) is the reference.
+3. Press **Check syntax**, then fill in the **Credentials** tab. Templates declare
+   their fields, so you get a form with required fields marked `*`.
+4. Press **Test authentication now** and check **Login traffic**.
+5. For the next user of the same application, select the identity, press
+   **Duplicate**, rename the copy and change its credentials. The script, session
+   settings and request rewriting are copied with it.
+
+**Path C: a static header or cookie.** For an API key, or a session you can only
+obtain by hand. Put it under **Request rewriting → Always set these headers:**, one
+`Name: value` per line, for example `Authorization: Bearer eyJ...` or
+`Cookie: session=...`. There is no login, so nothing re-authenticates when the
+token expires. The "Static API key or token in a header" and "Static session cookie"
+templates do the same thing as a script. An identity with neither a script nor a
+static header still "authenticates", with nothing, so its replays are just more
+unauthenticated requests labelled with its name.
+
+**Every identity, whichever path:**
+
+- **Only URLs matching:** on the **Credentials** tab fences the identity to one
+  application. Set it whenever the project covers more than one application with
+  its own users. Identities imported from a recorder download have it empty, so they apply
+  everywhere. Identities imported from an **Export all...** file keep the scope they
+  were exported with. See
+  [Several apps in one project](#several-apps-in-one-project).
+- **Include this identity in tests** switches an identity off without deleting it.
+  A disabled identity gets no column in the results.
+- **Request rewriting → Strip these headers first:** removes the captured
+  request's credentials before the identity's are applied. The default does not
+  strip `Proxy-Authorization`, `Api-Key`, `X-Access-Token` or `X-Session-Token`. If
+  the application authenticates with one of those, add it, or the baseline user's
+  credential rides along on every replay and every row reads **Bypassed!**. Tokens
+  in the query string or body are not stripped either; override them from the
+  script with `params`.
+- There is no Save button. Edits are saved to the project a moment after you stop
+  typing.
+
+### 6. Make the sessions survive
+
+A test that runs for hours needs sessions that outlive it. Set these per identity
+on the **Session lifetime** tab, which [Keeping short-lived sessions
+alive](#keeping-short-lived-sessions-alive) describes in full. Finding the right
+values for the target:
+
+- **Session lifetime (seconds, 0 = no timer):** read it off a login. The token
+  response's `expires_in`, a JWT's `exp` minus `iat`, or the session cookie's
+  `Max-Age` give it directly; the identity's **Login traffic** tab has all three.
+  Enter the real lifetime: the extension re-runs the script at 80% of it. This
+  keeps logging in in the background even while you are not testing, so a broken
+  script can lock an account. Get **Test authentication now** passing first.
+- **Invalid-session pattern:** find out what a dead session looks like. Take a
+  request from Proxy history into Repeater, swap in an expired or logged-out token,
+  and send it. Pick something that only that response contains, such as
+  `(?i)www-authenticate: bearer error="invalid_token"` or `(?i)your session has
+  expired`. Add `(?i)` to header patterns: over HTTP/2 header names arrive in
+  lower case. The pattern is matched against the status line, headers and body of
+  every replay, so a pattern that also matches healthy pages causes a login and a
+  second replay for every request.
+- **Session-check URL:** a cheap `GET` that any logged-in user can read, such as
+  `/api/me` or the profile page. A recorder import fills it in when the proof
+  request was a `GET`. **Healthy-session pattern:** leave it empty only if a dead
+  session gets a `401`/`403` (or another 4xx/5xx) there. The check does not follow
+  redirects and counts any 2xx or 3xx as alive, so if a dead session is redirected
+  or gets a `200` login page, set it to something only a live session returns, for
+  example `"email"\s*:`.
+- **Re-authenticate when a replay is denied and the session cannot be proven
+  alive** is on by default. Leave it on unless logins are expensive or rate-limited.
+  When it is off, the session-check URL is never used, and only the invalid-session
+  pattern and the session lifetime timer detect expiry.
+
+### 7. Capture the baseline
+
+The baseline is the request and response exactly as Burp saw them, carrying
+whatever credentials your browser sent. Every identity's replay is compared against
+it. So browse through Burp (Burp's browser or a proxied one) **as the user who owns
+the data**, and the baseline user does not have to be a configured identity.
+
+If the baseline user is also an enabled identity, that column is compared against
+its own traffic and reads **Bypassed!** on nearly every row. That is a useful
+positive control while you tune settings, as it proves the comparison works. But it
+fills **Findings only** with rows that are not findings, so untick **Include this
+identity in tests** for it before the real run.
+
+Plan one browsing pass per question you want answered:
+
+- **Vertical (privilege escalation):** browse as the administrator, through every
+  admin function, with the lower-privilege users as identities. A low-privilege
+  identity that reads **Bypassed!** reached an admin function.
+- **Horizontal (other users' data):** browse as user A, opening A's own records
+  (orders, documents, profile, invoices), with user B (same role) as an identity.
+  B reading **Bypassed!** on A's record is a finding. Then swap: browse as B, with A
+  as the identity.
+- **Cross-tenant:** the same as horizontal, with the other tenant's users as
+  identities.
+
+Use **Clear** on the Results tab between passes if you want each pass on its own.
+It has no confirmation, it also deletes the results stored in the project, and it
+resets **Test each endpoint only once**, so the next pass tests everything again.
+Export first (step 9) if you need the earlier rows.
+
+### 8. Run the tests
+
+Two ways in, which you can mix:
+
+- **Auto-test:** tick **Auto-test in-scope traffic** on the Results tab and
+  browse. Each response that passes the filters is replayed in the background. The
+  status line shows how many were tested, queued, skipped by filters and dropped.
+- **On demand:** right-click any request anywhere in Burp (Proxy history, site map,
+  Logger, Repeater) → **Send to Auth Check**, for one or several requests. This
+  ignores every filter, the dedupe and Burp's target scope. Only each identity's
+  **Only URLs matching:** still applies. The rows show source **Manual**. The
+  extension switches its own view to **Results**, but Burp stays on the tab you were
+  in.
+
+Read step 1 again before you browse anything that changes state with auto-test on:
+each such request is sent `1 + N` times, and the filters in step 4 are the only
+safeguard. On a production system, the safest routine is auto-test with
+state-changing methods in **Skip these HTTP methods:**, then **Send to Auth Check**
+for the individual write requests you have agreed to test.
+
+### 9. Triage the results
+
+Each row is one captured request. **Status** and **Length** are the baseline's;
+then there is a verdict column for **Unauthenticated** and for each enabled
+identity. Hover a verdict cell for the explanation, and click a column header twice
+to sort the worst first. [Reading the verdicts](#reading-the-verdicts) has the full
+table.
+
+| Verdict | What to do |
+|---|---|
+| **Bypassed!** | Confirm it (below). Check the row's **Notes** first: *endpoint appears public* means the unauthenticated replay also succeeded, so the identity results prove nothing. The identity cells still read **Bypassed!** and still count as findings, so you have to discount them yourself |
+| **Review** | Read the response. Usually it is the identity's own data, which is correct behaviour. It is a finding if it contains anything of the baseline user's: names, ids, amounts. Also look here for a non-2xx baseline, which can never produce **Bypassed!** |
+| **Enforced** | Nothing to do, unless you suspect the denied body pattern is matching a normal page. Spot-check a few |
+| **Auth failed** | Nothing was tested. Fix the identity (**Test authentication now**, **Login traffic**), then select the rows and **Retest selected** |
+| **Error** | The replay failed or got no response. Check the target is up and **Response timeout (ms):** is long enough, then retest |
+| **-** | Not replayed: the URL is outside that identity's **Only URLs matching:** |
+
+**Confirming a bypass.** Select the row. The **Variants** list on the left
+auto-selects the worst variant, and **Request**/**Response** show that replay
+exactly as sent. Compare it with **Baseline (as captured)**:
+
+1. Check the replayed request carries the identity's credentials and none of the
+   baseline user's (**Auth applied to this replay** in the **Verdict** box lists
+   what was applied; the line is missing when the replay re-authenticated, so
+   check the **Request** pane directly then).
+2. Check the response contains the baseline user's data, not a generic page that
+   happens to match.
+3. With the identity selected in **Variants**, press **Send to Repeater**.
+   Double-clicking the row sends the worst variant, not the one you picked. The
+   Repeater tab is named `AuthChk <identity>`. Send it
+   again by hand, and if the session has since expired, run **Test authentication
+   now** and paste the fresh token in. A response that still returns the other
+   user's data is your evidence. Select **Baseline (as captured)** first to send the
+   original instead.
+
+**Retest selected** sends the selected rows again as new **Manual** rows, compared
+against the original baseline response. If the data has changed since you captured
+it, expect **Review** rather than **Bypassed!**.
+
+**Findings only** shows only rows with at least one **Bypassed!**. It hides
+**Review** rows, so do not rely on it alone.
+
+**Export CSV...** writes every row currently in the Results table with each
+variant's verdict and explanation, for the report. It ignores **Findings only** and
+the sort. The table holds at most **Keep at most N results** rows (oldest dropped
+first), and the CSV has a column only for each identity currently enabled, so on a
+long test raise the cap or export after each pass.
+
+### 10. Scanner and Intruder
+
+To scan or fuzz as an identity, use its session-handling action, **Auth Check:
+authenticate as &lt;identity&gt;**, in a Burp session-handling rule. See
+[Session-handling actions](#session-handling-actions-scanner-and-intruder) for the
+steps. Three things to get right in the rule's scope:
+
+- Limit its tools to the ones that should run as that identity, such as Scanner or
+  Intruder. Leave **Proxy** out, or your baseline browsing is rewritten as the
+  identity, and leave **Extensions** out, or every Auth Check replay is too.
+- One rule per identity. The action leaves requests outside the identity's **Only
+  URLs matching:** unchanged and logs nothing, so a request outside that scope goes
+  out with whatever credentials it already had.
+- Disabled identities still have actions registered. Disabling an identity does not
+  stop a rule that uses it.
+
+Scanner and Intruder traffic is not auto-tested unless you tick them under **Test
+traffic from:**. Leave them unticked: replaying every scan request as every
+identity multiplies the scan.
+
+### 11. Wrapping up
+
+1. Export the results with **Export CSV...** and save the Burp project.
+2. **Identities → Export all...** for a backup of the identities, credentials and
+   scripts that does not depend on the project file. It does not include login
+   traffic.
+3. In Chrome, open **Saved recordings** from the recorder popup, pick each
+   recording from the dropdown and press **Delete recording**. Remove the recorder
+   if the profile is shared.
+4. Treat the project file, the identities export, the CSV and any recorder
+   download as sensitive. All of them hold credentials or application data in
+   clear text. Archive or destroy them according to the engagement's data-handling
+   terms, and ask the client to disable the test accounts.
 
 ---
 
@@ -329,7 +691,7 @@ worker threads.
 Writing the script by hand is the slow part when the login is a multi-hop redirect
 dance. [`chrome-extension/`](chrome-extension/) is a companion recorder that writes
 it for you: log in once in a Chrome tab, and it produces the script plus an
-identities file for **Identities → Import**.
+identities file for **Identities → Import...**.
 
 It works out which requests the session depends on and drops the rest. Every value
 the server issued along the way (CSRF tokens, form actions, redirect `Location`s,
@@ -352,7 +714,7 @@ recording and its limits.
 
 Per identity, on the **Session lifetime** tab:
 
-- **Session lifetime (seconds)** — if the app expires sessions on a timer, state it.
+- **Session lifetime (seconds, 0 = no timer)** — if the app expires sessions on a timer, state it.
   Background re-auth happens at 80% of that age. `0` disables the timer.
 - **Invalid-session pattern** — a regex matched against the replayed response's
   status line, headers and body. This is the reliable signal; on a match the session
@@ -361,6 +723,10 @@ Per identity, on the **Session lifetime** tab:
 - **Session-check URL** + **Healthy-session pattern** — a cheap authenticated
   endpoint used to settle whether a `401`/`403` meant "expired" or "not allowed".
   Leave the pattern empty to accept any 2xx/3xx.
+- **Re-authenticate when a replay is denied and the session cannot be proven
+  alive** — on by default. Without a session-check URL, a denied replay then
+  triggers one speculative re-auth per identity per 10s. Untick it to treat every
+  denial as enforcement.
 
 Configuring the invalid-session pattern is the single highest-value thing you can do
 for a fast-expiring target. Without it the extension falls back to rate-limited
@@ -372,19 +738,23 @@ guessing, which is safe but slower to react.
 
 | Verdict | Meaning |
 |---|---|
-| **Bypassed** | Same status and near-identical body as the baseline: this identity reached the resource. Your finding. |
+| **Bypassed!** | Same status and near-identical body as the baseline: this identity reached the resource. Your finding. |
 | **Enforced** | The server refused — denied status code, denial pattern in the body, or a redirect to login. |
 | **Review** | Different from the baseline but not a recognisable denial. Usually the identity's own data; sometimes a partial leak. Read it. |
 | **Auth failed** | No session could be established, so nothing was proven. Fix the script first. |
 | **Error** | The replay itself failed — connection refused, timeout. |
+| **-** | Not replayed: the URL is outside this identity's **Only URLs matching** scope. |
 
-Select a row to get every variant's full request and response side by side, plus the
-reasoning behind the verdict. Sorting a verdict column puts the worst first, and the
+Select a row, then pick a variant from the **Variants** list to see its full request
+and response side by side, plus the reasoning behind the verdict; the worst variant is
+selected for you. Verdict columns sort by severity, least severe first, so click the
+header again to put the worst first. The
 sort you choose is remembered in the project — it is stored against the column's
 identity rather than its position, so adding or removing an identity does not leave
 you sorted by the wrong column. Hovering
-a verdict cell shows the explanation. **Findings only** hides everything but bypasses.
-**Export CSV** writes every verdict with its explanation.
+a verdict cell shows the explanation, and hovering a URL shows it in full. **Findings
+only** hides everything but rows with a **Bypassed!**. **Export CSV...** writes every
+row with each verdict and its explanation, whatever the filter.
 
 ---
 
@@ -395,11 +765,13 @@ Two situations make a naive tool cry wolf, and both are handled explicitly:
 **A public endpoint.** If the unauthenticated replay also succeeds, then every
 identity "bypassing" it is expected. Those rows are annotated *endpoint appears
 public*, and the Unauthenticated column makes it obvious at a glance — which is the
-main reason to leave that replay switched on.
+main reason to leave that replay switched on. The identity cells still read
+**Bypassed!** and still count under **Findings only**, so discount them yourself.
 
 **A baseline that was not a success.** Comparing against a `404` or a `500` proves
 nothing. Rather than claim a bypass because two `404`s match, those rows degrade to
-**Review** and say why.
+**Review** and say why. A replay that is a recognised denial still reads
+**Enforced**, because denial is checked first.
 
 Body comparison uses a Sørensen–Dice coefficient over character shingles. Whitespace
 is collapsed and high-entropy token-like runs (16+ characters mixing letters and
@@ -461,7 +833,7 @@ Reopen the project and the whole engagement comes back — configuration *and* e
 > makes an update look exactly like losing every identity. Builds 380dc8a–197f9dc did
 > this; 1.1.1 migrates anything they stranded back automatically on first load.
 >
-> Use **Identities → Export all…** for a backup that does not depend on any of this.
+> Use **Identities → Export all...** for a backup that does not depend on any of this.
 > It is also how an identity set moves between projects or testers. The file holds
 > credentials in clear text.
 
@@ -478,9 +850,12 @@ Each stored result holds the baseline exchange plus one per identity, so storage
 the main thing the extension adds to a project file. Under **Settings → Storing
 results in the project**:
 
-- **Store tested requests and responses** — off writes nothing (default on).
-- **Store only rows worth revisiting** — keeps bypassed, review and auth-failed rows
-  and discards the enforced ones, which are usually the bulk.
+- **Store tested requests and responses in the Burp project** — off writes nothing,
+  neither results nor login traffic (default on).
+- **Store only rows worth revisiting (bypassed, review, auth failed)** — despite the
+  label, keeps only rows whose worst verdict is **Bypassed!** or **Review**. Enforced
+  rows, which are usually the bulk, are discarded, and so are **Auth failed** and
+  **Error** rows.
 - **Store at most N results** — default 500, independent of how many are held in
   memory. Oldest are dropped first. `0` stores none.
 
@@ -500,9 +875,18 @@ throttles testing.
 
 ## Settings reference
 
+Nothing on the Settings tab takes effect until you press **Apply**. **Revert**
+discards unapplied edits; **Restore defaults** resets every setting at once (after a
+confirmation) and leaves identities alone. The Results tab's **Auto-test in-scope
+traffic** checkbox is the same setting as **Automatically test traffic as it
+arrives**, and applies immediately.
+
 **What gets tested** — auto-test on/off; test unauthenticated; restrict to Burp
 scope; which tools' traffic to watch (Proxy and Repeater by default); dedupe by
-endpoint; skip static resources; skip baseline status codes; **skip HTTP methods**;
+endpoint (method, host, port and path); whether a different set of parameter names,
+cookie names included, makes a different endpoint (on); skip static resources (`css,
+js, mjs, map, png, jpg, jpeg, gif, svg, ico, webp, avif, woff, woff2, ttf, eot, mp4,
+mp3, pdf`); skip baseline status codes (`301, 302, 304, 404`); **skip HTTP methods**;
 URL include/exclude regexes.
 
 Filtered methods never reach the results at all. `OPTIONS` is skipped by default: a
@@ -511,22 +895,28 @@ triple the traffic for nothing. Clear the list to test every method.
 
 Requests sent by extensions are **never** auto-tested, regardless of settings —
 otherwise the extension would test its own replays forever. "Send to Auth Check"
-ignores every filter, including dedupe.
+ignores every filter, including dedupe and Burp's target scope; only each identity's
+own URL scope still applies.
 
-**Judging responses** — same-response threshold (default 95%); comparison byte cap;
+**Judging the responses** — same-response threshold (default 95%); comparison byte cap
+(262144);
 Burp variations analyser instead of similarity; follow redirects on replay (off by
 default, so a 302 to `/login` reads as enforcement).
 
-**What counts as denied** — status codes (401, 403); a body regex; whether a redirect
-to a login URL counts, and the login URL pattern.
+**What counts as "access denied"** — status codes (401, 403); a body regex, checked
+at any status; whether a redirect to a login URL counts, and the login URL pattern.
+The defaults are on the Settings tab, and [step 4 of the user
+guide](#4-configure-settings-for-the-engagement) covers tuning them.
 
-**Unauthenticated replay** — which headers to strip.
+**Unauthenticated replay** — which headers to strip (`Authorization,
+Proxy-Authorization, Cookie, X-Api-Key, Api-Key, X-Auth-Token, X-Access-Token,
+X-Session-Token, X-CSRF-Token, X-XSRF-Token`).
 
 **Storing results in the project** — whether to store tested requests and responses,
 whether to limit that to rows worth revisiting, and the storage cap.
 
-**Performance** — worker threads; queue capacity; response timeout; script timeout;
-result cap. When the queue is full, work is shed and the count is shown in the status
+**Performance** — worker threads; queue capacity (takes effect only after the
+extension is reloaded); response timeout; script timeout; result cap. When the queue is full, work is shed and the count is shown in the status
 line rather than growing memory or blocking Burp's proxy threads.
 
 ---

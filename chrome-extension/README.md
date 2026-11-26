@@ -2,7 +2,7 @@
 
 A Chrome extension that records a login and writes the
 [Auth Check](../README.md) identities for it: one Groovy auth script, plus an
-identities file that **Auth Check → Identities → Import** reads.
+identities file that **Auth Check → Identities → Import...** reads.
 
 You log in once in a normal browser tab. The recorder works out which requests the
 session depends on and which values the server issued along the way: CSRF tokens,
@@ -64,10 +64,10 @@ The editor has the request list on the left and the output on the right.
 | **Credentials** | The values you typed that turned up in requests, and the `param` each one becomes. You can rename them, change their type or whether they are required, or add a value the recorder missed (for example a password-manager autofill that never fired an input event). |
 | **Session** | The cookies and headers the script returns, and the origin that becomes `creds.base`. |
 | **Identities** | One row per identity. Every identity shares the script and has its own credentials. Fill in a row for each user you need to test. |
-| **Warnings** | Anything the script replays as a recorded literal that could go stale. |
+| **Warnings** | Anything the script replays as a recorded literal that could go stale, and a missing credential, proof request or session. |
 
 Then **Download identities for Burp**, and in Burp go to
-**Auth Check → Identities → Import**. Press **Test authentication now** on an
+**Auth Check → Identities → Import...**. Press **Test authentication now** on an
 identity to watch the script log in; the **Login traffic** tab shows every request
 it sent.
 
@@ -82,7 +82,7 @@ it sent.
 | Redirect chains (OIDC, SAML-style hops) | Each hop requests the `Location` the server just sent, so `state`, `code` and similar values are always current |
 | Form actions carrying flow ids (Keycloak, many IdPs) | The whole action URL, HTML-unescaped |
 | Values in a redirect's query or fragment | `queryParam(Location, 'code')` |
-| TOTP second factor | Recognised from a 6–8 digit one-time-code field. Becomes a `totpSecret` param, and the code is generated on each run |
+| TOTP second factor | Recognised from a 6–8 digit value in a one-time-code, OTP-named or numeric field. Becomes a `totpSecret` param, and the code is generated on each run. The secret is never captured: paste each account's base32 secret into its row on the Identities tab before downloading |
 | HTTP Basic | Rebuilt from `creds.username` and `creds.password` |
 | A login that has changed | Each step checks its status class against the recording and names the step that differs. Each extraction names what it could not find |
 
@@ -111,7 +111,7 @@ local storage, unencrypted, until you **Delete recording**. Nothing is sent
 anywhere. The extension makes no network requests of its own.
 
 The identities file holds the credentials in clear text, just like Burp's own
-**Export all…**.
+**Export all...**.
 
 Permissions:
 
