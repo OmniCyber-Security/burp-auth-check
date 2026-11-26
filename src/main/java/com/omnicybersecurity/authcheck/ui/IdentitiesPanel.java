@@ -82,7 +82,7 @@ public final class IdentitiesPanel extends JPanel {
     private final JTextField refreshIntervalField = new JTextField(8);
     private final JTextField sessionInvalidRegexField = new JTextField(40);
     private final JCheckBox reauthOnDeniedBox = new JCheckBox(
-            "Re-authenticate when a replay is denied and the session cannot be proven alive");
+            "Without a session-check URL, re-authenticate speculatively when a replay is denied");
     private final JTextField sessionCheckUrlField = new JTextField(40);
     private final JTextField sessionValidRegexField = new JTextField(40);
 
@@ -444,7 +444,8 @@ public final class IdentitiesPanel extends JPanel {
         form.addWide(UiUtils.hint(
                 "A 401/403 is also the correct result of a passing authorisation check, so it is never treated as "
                 + "expiry on its own. Give a session-check URL below and it is probed to settle the question; "
-                + "without one, a speculative re-auth is allowed at most once every 10 seconds."));
+                + "without one, the option below allows a speculative re-auth at most once every 10 seconds. "
+                + "The option has no effect while a session-check URL is set."));
         form.addWide(reauthOnDeniedBox);
         form.add("Session-check URL:", sessionCheckUrlField);
         form.add("Healthy-session pattern:", sessionValidRegexField);
