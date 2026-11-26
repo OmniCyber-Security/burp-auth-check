@@ -179,7 +179,7 @@ public final class SessionManager {
         if (response == null || Text.isBlank(identity.sessionInvalidRegex())) {
             return false;
         }
-        return Patterns.find(identity.sessionInvalidRegex(), responseText(response));
+        return matchesResponse(identity.sessionInvalidRegex(), response);
     }
 
     /**
@@ -243,20 +243,29 @@ public final class SessionManager {
                 return true;
             }
             HttpResponse response = result.response();
-            return SessionLiveness.isAlive(response.statusCode(), responseText(response),
-                    identity.sessionValidRegex());
+            return SessionLiveness.isAliveMatching(response.statusCode(), identity.sessionValidRegex(),
+                    regex -> matchesResponse(regex, response));
         } catch (Exception e) {
             api.logging().logToError("[auth-check] Session check failed for '" + identity.name() + "': " + e);
             return true;
         }
     }
 
-    private String responseText(HttpResponse response) {
+    /**
+     * Matches a session pattern against the status line, headers and body.
+     *
+     * <p>Over HTTP/2 Burp reports header names in lower case, so a pattern
+     * written as {@code WWW-Authenticate: Bearer} would never match. The status
+     * line and headers are therefore also searched case-insensitively; the body
+     * keeps exact-case matching. Inline {@code (?i)} and {@code (?-i)} still work.
+     */
+    static boolean matchesResponse(String regex, HttpResponse response) {
         StringBuilder sb = new StringBuilder();
         sb.append(response.statusCode()).append(' ').append(Text.nullToEmpty(response.reasonPhrase())).append('\n');
         response.headers().forEach(header -> sb.append(header.name()).append(": ").append(header.value()).append('\n'));
-        sb.append('\n').append(response.bodyToString());
-        return sb.toString();
+        String head = sb.toString();
+        return Patterns.find(regex, head + '\n' + response.bodyToString())
+                || Patterns.findIgnoringCase(regex, head);
     }
 
     // -- keep-alive ----------------------------------------------------------

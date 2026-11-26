@@ -3,6 +3,8 @@ package com.omnicybersecurity.authcheck.auth;
 import com.omnicybersecurity.authcheck.util.Patterns;
 import com.omnicybersecurity.authcheck.util.Text;
 
+import java.util.function.Predicate;
+
 /**
  * Reads a session-check probe's response as "alive" or "not proven alive".
  *
@@ -23,8 +25,17 @@ final class SessionLiveness {
      * @param healthyRegex the identity's healthy-session pattern, may be blank
      */
     static boolean isAlive(int status, String responseText, String healthyRegex) {
+        return isAliveMatching(status, healthyRegex, regex -> Patterns.find(regex, responseText));
+    }
+
+    /**
+     * @param status       the probe response's status code
+     * @param healthyRegex the identity's healthy-session pattern, may be blank
+     * @param matches      how a pattern is matched against the probe response
+     */
+    static boolean isAliveMatching(int status, String healthyRegex, Predicate<String> matches) {
         if (!Text.isBlank(healthyRegex)) {
-            return Patterns.find(healthyRegex, responseText);
+            return matches.test(healthyRegex);
         }
         return status >= 200 && status < 300;
     }

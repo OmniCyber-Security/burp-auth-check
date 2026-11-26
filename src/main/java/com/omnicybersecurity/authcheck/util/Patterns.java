@@ -13,18 +13,23 @@ import java.util.regex.PatternSyntaxException;
 public final class Patterns {
 
     private static final Map<String, Object> CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Object> CACHE_IGNORING_CASE = new ConcurrentHashMap<>();
     private static final Object INVALID = new Object();
 
     private Patterns() {
     }
 
     public static Pattern compile(String regex) {
+        return compile(regex, CACHE, 0);
+    }
+
+    private static Pattern compile(String regex, Map<String, Object> cache, int flags) {
         if (Text.isBlank(regex)) {
             return null;
         }
-        Object cached = CACHE.computeIfAbsent(regex, key -> {
+        Object cached = cache.computeIfAbsent(regex, key -> {
             try {
-                return Pattern.compile(key);
+                return Pattern.compile(key, flags);
             } catch (PatternSyntaxException e) {
                 return INVALID;
             }
@@ -50,6 +55,15 @@ public final class Patterns {
             return false;
         }
         Pattern pattern = compile(regex);
+        return pattern != null && pattern.matcher(haystack).find();
+    }
+
+    /** Like {@link #find} but ignoring case (Unicode-aware). */
+    public static boolean findIgnoringCase(String regex, String haystack) {
+        if (haystack == null) {
+            return false;
+        }
+        Pattern pattern = compile(regex, CACHE_IGNORING_CASE, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         return pattern != null && pattern.matcher(haystack).find();
     }
 }
